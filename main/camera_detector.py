@@ -90,8 +90,7 @@ class KalmanFilter:
 
         return x_pred_list, y_pred_list, z_pred_list, cov_pred_list
 
-if __name__ == '__main__':
-
+def camera_detector():
     cam1 = RealSense(serial=SERIAL1)
     cam1.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
@@ -114,7 +113,7 @@ if __name__ == '__main__':
     num_memory = 1 # need to implement?
     kalman_filter = KalmanFilter(num_memory)
 
-    print(cam1._fx, cam1._fy)
+    #print(cam1._fx, cam1._fy)
     while True:
         ts = time.time_ns()
 
