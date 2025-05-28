@@ -260,9 +260,9 @@ def runCamera():
         # print(state_filtered)
         # z_estimated = cam1._fx * ball_diameter / (state_filtered[2] * 2)
 
-        ball_pos[0] = state_filtered[4]
-        ball_pos[1] = state_filtered[5]
-        ball_pos[2] = state_filtered[6]
+        ball_pos[0] = state_filtered[4] * 100
+        ball_pos[1] = state_filtered[5] * 100
+        ball_pos[2] = state_filtered[6] * 100
 
         state_filtered_que.append(state_filtered)
         if len(state_filtered_que) > 30:
@@ -278,9 +278,9 @@ def runCamera():
         except:
             vx=0;vy=0;vz=0
 
-        ball_vel[0] = vx
-        ball_vel[1] = vy
-        ball_vel[2] = vz
+        ball_vel[0] = vx * 100
+        ball_vel[1] = vy * 100
+        ball_vel[2] = vz * 100
 
         # x_obs_list = [x[3] for x in state_filtered_que if x is not None]
         # y_obs_list = [x[3] for x in state_filtered_que if x is not None]
@@ -407,12 +407,22 @@ while i <repeat :
     i = i + 1
 '''
 
+avg_x = 0
+avg_y = 0
+avg_z = 0
 for i in range(10):
-    print("POS : ", end="")
-    print(ball_pos)
-    print("VEL : ", end="")
-    print(ball_vel)
+    avg_x = avg_x + ball_pos[0]
+    avg_y = avg_y + ball_pos[1]
+    avg_z = avg_z + ball_pos[2]
     time.sleep(2)
+
+avg_x = avg_x / 10
+avg_y = avg_y / 10
+avg_z = avg_z / 10
+
+print(avg_x)
+print(avg_y)
+print(avg_z)
 
 indy.stop_teleop()
 stop_camera = True
