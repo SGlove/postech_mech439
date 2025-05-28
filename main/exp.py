@@ -108,7 +108,7 @@ if __name__ == '__main__':
     state_filtered2 = None
     z_filtered = None
     beta = 0.80
-    ball_diameter = 0.05 # 4cm ball
+    ball_diameter = 0.04 # 4cm ball
     state_filtered_que = [None] * 30
 
     num_memory = 1 # need to implement?
@@ -161,9 +161,6 @@ if __name__ == '__main__':
 
             ((u1, v1), r1) = cv2.minEnclosingCircle(c1)
 
-            x1 = u1 / cam1._fx
-            y1 = v1 / cam1._fx
-
             M1 = cv2.moments(c1)
             uc1 = M1["m10"] / M1["m00"]
             vc1 = M1["m01"] / M1["m00"]
@@ -211,7 +208,7 @@ if __name__ == '__main__':
             vc2 = M2["m01"] / M2["m00"]
             wc2 = ball_diameter / (r2* 2 / cam2._fx)
 
-            xc2 = - wc2
+            xc2 = uc2
             yc2 = uc2 / cam2._fx
             zc2 = - vc2 / cam2._fx
 
@@ -235,8 +232,8 @@ if __name__ == '__main__':
 
         #임시시
         # state_filtered=state_filtered1
-        # print(state_filtered1)
-        # print(state_filtered)
+        print(state_filtered1)
+        #print(state_filtered)
         # z_estimated = cam1._fx * ball_diameter / (state_filtered[2] * 2)
 
         state_filtered_que.append(state_filtered)

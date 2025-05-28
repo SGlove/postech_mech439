@@ -228,14 +228,13 @@ if __name__ == '__main__':
         else:
             if state_filtered2 is None:
                 state_filtered2 = np.zeros(7)
+        # state_observed1 = np.array([uc1, vc1, wc1, r1, xc1, yc1, zc1])=[y모멘텀, z모멘텀, x모멘텀, 반지름, x]
+        a=0 #보정치치
+        b=0
+        #state_filtered=np.array([0,0,0,state_filtered1[3], -state_filtered1[2], (state_filtered1[4] + state_filtered2[4])/2, -state_filtered2[2]+b])
 
-        state_filtered=(state_filtered1+state_filtered2)/2
-
-        z_filtered = map_depth1[int(state_filtered[1]), int(state_filtered[0])]
-        if z_filtered > 0:
-            z_filtered = z_filtered + ball_diameter/2
-        else:
-            z_filtered = np.inf
+        #임시시
+        state_filtered=state_filtered1
 
         # z_estimated = cam1._fx * ball_diameter / (state_filtered[2] * 2)
 
@@ -272,11 +271,15 @@ if __name__ == '__main__':
         # for x_pred, y_pred, cov_pred in zip(x_pred_list, y_pred_list, cov_pred_list):
         #     # cv2.circle(img_rgb1, (int(x_pred), int(y_pred)), 5, (255, 0, 0), -1)
         #     cv2.circle(img_rgb1, (int(cam1._fx * x_pred), int(cam1._fx * y_pred)), int(np.sqrt(cov_pred[0, 0])), (255, 0, 0), 2)
-
+        
+        #노란색 코드드        
+        cv2.circle(img_rgb1, (int(state_filtered[0]), int(state_filtered[1])), int(state_filtered[3]), (0, 255, 255), 2)
+        #파란색 코드
         for u_pred, v_pred, w_pred, cov_pred in zip(u_pred_list, v_pred_list, w_pred_list, cov_pred_list):
             # cv2.circle(img_rgb1, (int(x_pred), int(y_pred)), 5, (255, 0, 0), -1)
             cv2.circle(img_rgb1, (int(cam1._fx*u_pred), int(-cam1._fx*v_pred)), int(np.sqrt(cov_pred[0, 0])), (255, 0, 0), 2)
 
+        #빨간색 코드
         for j in range(1, len(state_filtered_que)):
             if state_filtered_que[j - 1] is None or state_filtered_que[j] is None:
                 continue
@@ -293,9 +296,6 @@ if __name__ == '__main__':
                     (255, 255, 255), 10, cv2.LINE_AA)
         cv2.putText(img_rgb1, '{0:.3f}'.format(-state_filtered[4]), (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 2,
                     (0, 0, 0), 5, cv2.LINE_AA)
-
-        cv2.circle(img_depth1, (int(state_filtered[0]), int(state_filtered[1])), int(state_filtered[2]), (0, 255, 255), 2)
-        cv2.circle(img_depth1, (int(state_filtered[3]), int(state_filtered[4])), 4, (0, 0, 255), -1)
 
         tf = time.time_ns()
 

@@ -10,7 +10,7 @@ import time
 from utils.Toolbox import *
 from utils.Camera.realsense import RealSense, D455_DEFAULT_COLOR, D455_DEFAULT_DEPTH, L515_DEFAULT_DEPTH, L515_DEFAULT_COLOR
 
-REALSENSE_SERIAL = "141322251060"
+REALSENSE_SERIAL = "138322252637"
 # REALSENSE_SERIAL = "f1371347"
 
 def nothing(x):
@@ -96,14 +96,14 @@ if __name__ == '__main__':
     cam.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
     ballLower = (6, 83, 149)
-    ballUpper = (10, 237, 255)
+    ballUpper = (20, 237, 255)
 
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
 
     state_filtered = None # [x, y, r, xc, xy]
     z_filtered = None
     beta = 0.80
-    ball_diameter = 0.05 # 3cm ball
+    ball_diameter = 0.04 # 3cm ball
     state_filtered_que = [None] * 30
 
     num_memory = 1 # need to implement?
