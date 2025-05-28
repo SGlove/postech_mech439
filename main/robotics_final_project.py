@@ -194,7 +194,7 @@ def runCamera():
             yc1 = uc1 / cam1._fx
             zc1 = - vc1 / cam1._fx
 
-            state_observed1 = np.array([uc1, vc1, wc1, r1, xc1, yc1, zc1])
+            state_observed1 = np.array([uc1, vc1, wc1, r1,0, 0, 0])
 
             # only proceed if the radius meets a minimum size
             if r1 > 8:
@@ -236,7 +236,9 @@ def runCamera():
             yc2 = uc2 / cam2._fx
             zc2 = - vc2 / cam2._fx
 
-            state_observed2 = np.array([uc2, vc2, wc2, r2, xc2, yc2, zc2])
+            vc2=vc2-46.8
+            uc2=uc2-19
+            state_observed2 = np.array([uc2, vc2, wc2, r2, 0,0,0])
 
             # only proceed if the radius meets a minimum size
             if r2 > 8:
@@ -249,20 +251,23 @@ def runCamera():
         else:
             if state_filtered2 is None:
                 state_filtered2 = np.zeros(7)
-        # state_observed1 = np.array([uc1, vc1, wc1, r1, xc1, yc1, zc1])=[y모멘텀, z모멘텀, x모멘텀, 반지름, x]
-        a=0.017
-        b=0.025
-        state_filtered=np.array([state_filtered1[0],state_filtered1[1],state_filtered1[2],state_filtered1[3], -state_filtered1[2], (state_filtered1[5] + state_filtered2[5]+a)/2, -state_filtered2[2]+b])
+        # state_observed1 = np.array([uc1, vc1, wc1, r1, xc1, yc1, zc1])=[y모멘텀, z모멘텀, x모멘텀, 반지름, x]=
+        state_filtered=np.array([state_filtered1[0],(state_filtered1[1]+state_filtered2[1])/2,state_filtered2[0],state_filtered1[3], 0,0,0])
+        state_filtered[4] = - state_filtered[2] / cam1._fx
+        state_filtered[5] = state_filtered[0] / cam1._fx
+        state_filtered[6] = - state_filtered[1] / cam1._fx
 
         #임시시
         # state_filtered=state_filtered1
         # print(state_filtered1)
+        # print("1")
         # print(state_filtered)
+        # print(state_filtered2)
         # z_estimated = cam1._fx * ball_diameter / (state_filtered[2] * 2)
 
-        ball_pos[0] = state_filtered[4] * 100
-        ball_pos[1] = state_filtered[5] * 100
-        ball_pos[2] = state_filtered[6] * 100
+        ball_pos[0] = state_filtered[0]
+        ball_pos[1] = state_filtered[1]
+        ball_pos[2] = state_filtered[2]
 
         state_filtered_que.append(state_filtered)
         if len(state_filtered_que) > 30:
@@ -278,9 +283,9 @@ def runCamera():
         except:
             vx=0;vy=0;vz=0
 
-        ball_vel[0] = vx * 100
-        ball_vel[1] = vy * 100
-        ball_vel[2] = vz * 100
+        ball_vel[0] = vx
+        ball_vel[1] = vy
+        ball_vel[2] = vz
 
         # x_obs_list = [x[3] for x in state_filtered_que if x is not None]
         # y_obs_list = [x[3] for x in state_filtered_que if x is not None]
@@ -288,7 +293,7 @@ def runCamera():
         #     _, _ = kalman_filter.predict(x_obs, y_obs)
 
         # x_pred_list, y_pred_list, cov_pred_list = kalman_filter.predict(state_filtered[3], state_filtered[4], state_filtered[5], 30)
-        x_pred_list, y_pred_list, z_pred_list, cov_pred_list = kalman_filter.predict(state_filtered[4], state_filtered[5], state_filtered[6], vx, vy, vz, 1)
+        x_pred_list, y_pred_list, z_pred_list, cov_pred_list = kalman_filter.predict(state_filtered[0], state_filtered[1], state_filtered[2], vx, vy, vz, 1)
 
         u_pred_list = y_pred_list
         v_pred_list = z_pred_list
