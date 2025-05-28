@@ -412,6 +412,8 @@ while i <repeat :
     i = i + 1
 '''
 
+time.sleep(5)
+
 avg_x = 0
 avg_y = 0
 avg_z = 0
@@ -419,15 +421,32 @@ for i in range(10):
     avg_x = avg_x + ball_pos[0]
     avg_y = avg_y + ball_pos[1]
     avg_z = avg_z + ball_pos[2]
-    time.sleep(2)
-
+    time.sleep(1)
 avg_x = avg_x / 10
 avg_y = avg_y / 10
 avg_z = avg_z / 10
-
 print(avg_x)
 print(avg_y)
 print(avg_z)
+
+indy.movetelel_abs(home_pos + np.array([0, +100, 0, 0, 0, 0]), vel_ratio=0.5, acc_ratio=1.0)
+
+time.sleep(1)
+avg_x = 0
+avg_y = 0
+avg_z = 0
+for i in range(10):
+    avg_x = avg_x + ball_pos[0]
+    avg_y = avg_y + ball_pos[1]
+    avg_z = avg_z + ball_pos[2]
+    time.sleep(1)
+avg_x = avg_x / 10
+avg_y = avg_y / 10
+avg_z = avg_z / 10
+print(avg_x)
+print(avg_y)
+print(avg_z)
+
 
 indy.stop_teleop()
 stop_camera = True
