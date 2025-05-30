@@ -126,7 +126,7 @@ def runCamera():
     ballLower = (6, 83, 200)
     ballUpper = (179, 255, 255)
 
-    # cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
+    cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
 
     state_filtered = None # [x, y, r, xc, xy]
     state_filtered1 = None
@@ -311,7 +311,7 @@ def runCamera():
         # for x_pred, y_pred, cov_pred in zip(x_pred_list, y_pred_list, cov_pred_list):
         #     # cv2.circle(img_rgb1, (int(x_pred), int(y_pred)), 5, (255, 0, 0), -1)
         #     cv2.circle(img_rgb1, (int(cam1._fx * x_pred), int(cam1._fx * y_pred)), int(np.sqrt(cov_pred[0, 0])), (255, 0, 0), 2)
-        ''' UI
+        # UI
         #노란색 코드드        
         cv2.circle(img_rgb1, (int(state_filtered[0]), int(state_filtered[1])), int(state_filtered[3]), (0, 255, 255), 2)
         #파란색 코드
@@ -353,10 +353,10 @@ def runCamera():
         cv2.imshow('RealSense', combined_output)
 
         k = cv2.waitKey(1) & 0xFF
-        '''
+        
 
         if (stop_camera):
-            #cv2.destroyAllWindows() UI
+            cv2.destroyAllWindows() # UI
             break
 
 
@@ -413,7 +413,7 @@ def print_coordinate():
 
 def robot_calibration(home_pos : np.ndarray, w, h):
     print("#### starting calibration... ####")
-    time_per_step = 2
+    time_per_step = 2.5
     vel_ratio = 0.5
     acc_ratio = 1.0
 
@@ -500,7 +500,7 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     print("#### check points with plot figure ####")
-    plt.show()
+    #plt.show()
 
 def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
     indy.movetelel_abs(tpos = current_robot_pos - bounce_force * np.array([0, 0, 10, 0, 0, 0]))
@@ -512,7 +512,7 @@ def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_fo
 
 indy.stop_teleop()
 
-home_pos = np.array([500, 10, 400, 95, 104.5, 90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([550, 10, 400, 95, 104.5, 90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 init_jpos = indy.get_control_data()['q']
@@ -536,38 +536,55 @@ while (not is_cam_setup) :
     #print("waiting for cam setup")
 
 print("#### cam setup done! ####")
-time.sleep(3)
+time.sleep(5)
 
 
 try:
     workspace_width = 300
-    workspace_height = 100
+    workspace_height = 200
     vel_threshold = 1
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
     time.sleep(2)
 
+    target_z = -workspace_height/2
+    bounce_height = 80
+
+    start_time = time.time()
+    count = 0
+
+    print("#### detach the ball and press s ####")
+    while (True):
+        if (keyboard.is_pressed('s')):
+            break
+        time.sleep(0.1)
+
     while (True):
         if (keyboard.is_pressed('esc')):
             break
+        
+        count = count + 1
+        if (time.time() - start_time > 1):
+            print("sampling per second : " + str(count))
+            count = 0
+            start_time = time.time()
 
         ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
-        print(ball_pos_ws)
 
         if ((np.abs(ball_pos_ws[0]) > workspace_width/2) or (np.abs(ball_pos_ws[1]) > workspace_width/2)):
             print("#### ball is out of workspace. stop program. ####")
             break
 
         #print("vel_z: " + str(ball_vel[2]))
-        target_z = 0
 
         if (ball_vel[2] > vel_threshold):
             target_z = -workspace_height/2
         elif (ball_vel[2] < -vel_threshold):
-            target_z = workspace_height/2
+            target_z = -workspace_height/2 + bounce_height
 
-        indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
+        #indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
+        indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], target_z, 0, 0, 0]))
         #indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], -workspace_height/2, 0, 0, 0]))
     
 except Exception as e:
