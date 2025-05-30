@@ -20,6 +20,7 @@ from utils.Toolbox import *
 from utils.Camera.realsense import RealSense, D455_DEFAULT_COLOR, D455_DEFAULT_DEPTH, L515_DEFAULT_DEPTH, L515_DEFAULT_COLOR
 
 import threading
+import keyboard
 
 
 ########################### vision code ###########################
@@ -125,7 +126,7 @@ def runCamera():
     ballLower = (6, 83, 200)
     ballUpper = (179, 255, 255)
 
-    cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+    # cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
 
     state_filtered = None # [x, y, r, xc, xy]
     state_filtered1 = None
@@ -310,7 +311,7 @@ def runCamera():
         # for x_pred, y_pred, cov_pred in zip(x_pred_list, y_pred_list, cov_pred_list):
         #     # cv2.circle(img_rgb1, (int(x_pred), int(y_pred)), 5, (255, 0, 0), -1)
         #     cv2.circle(img_rgb1, (int(cam1._fx * x_pred), int(cam1._fx * y_pred)), int(np.sqrt(cov_pred[0, 0])), (255, 0, 0), 2)
-        
+        ''' UI
         #노란색 코드드        
         cv2.circle(img_rgb1, (int(state_filtered[0]), int(state_filtered[1])), int(state_filtered[3]), (0, 255, 255), 2)
         #파란색 코드
@@ -352,9 +353,10 @@ def runCamera():
         cv2.imshow('RealSense', combined_output)
 
         k = cv2.waitKey(1) & 0xFF
+        '''
 
         if (stop_camera):
-            cv2.destroyAllWindows()
+            #cv2.destroyAllWindows() UI
             break
 
 
@@ -373,12 +375,12 @@ def calculate_affine_transform(robot_points, camera_points):
     """
     # 동차 좌표계로 변환 (로봇 좌표계)
     A = []
-    for x, y, z in robot_points:
+    for x, y, z in camera_points:
         A.append([x, y, z, 1])
     A = np.array(A)  # 8x4 행렬
     
     # 카메라 좌표계 (타겟)
-    B = np.array(camera_points)  # 8x3 행렬
+    B = np.array(robot_points)  # 8x3 행렬
     
     # 최소 제곱법으로 변환 행렬 계산 (A * M = B)
     M, residuals, rank, s = np.linalg.lstsq(A, B, rcond=None)
@@ -535,35 +537,21 @@ while (not is_cam_setup) :
 print("cam setup done!")
 time.sleep(3)
 
-'''
-repeat = 5
-i=0
-while i <repeat :
-    #bounce(indy, current_robot_pos=home_pos, target_ball_pos = home_pos + np.array([0, +200, 0, 0, 0, 0]), bounce_force = 20)
-    #indy.movetelel_abs(home_pos + np.array([0, +200, 0, 0, 0, 0]), vel_ratio=0.5, acc_ratio=1.0)
-    #time.sleep(3)
-    #bounce(indy, current_robot_pos = home_pos, target_ball_pos = home_pos + np.array([0, -200, 0, 0, 0, 0]))
-    #indy.movetelel_abs(home_pos + np.array([0, -200, 0, 0, 0, 0]), vel_ratio=0.5, acc_ratio=1.0)
-
-
-    indy.movetelel_abs(home_pos, vel_ratio= 0.9, acc_ratio=0.8)
-    time.sleep(1)
-    indy.movetelel_abs(home_pos + np.array([0, 0, -200, 0, 0, 0]), vel_ratio=0.9, acc_ratio=0.8)
-    time.sleep(1)
-    
-    i = i + 1
-'''
 
 try:
-    robot_calibration(home_pos, 300, 100)
+    workspace_width = 300
+    workspace_height = 100
+    robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(3)
 
-    indy.movetelel_abs(home_pos, 0.5, 1.0)
-    time.sleep(1)
+    while (True):
+        if (keyboard.is_pressed('esc')):
+            break
 
-    print_coordinate()
-    t = transform_point((0, 0, 0))
-    print(t)
+        ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
+
+        print("vel_z: " + str(ball_vel[2]))
+        #indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], -workspace_height/2, 0, 0, 0]))
     
 except Exception as e:
     print(f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}")
