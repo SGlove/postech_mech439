@@ -30,6 +30,7 @@ SERIAL2 = "138322250508"
 
 ball_pos = [0, 0, 0]
 ball_vel = [0, 0, 0]
+is_cam_setup = False
 stop_camera = False
 
 def nothing(x):
@@ -112,6 +113,7 @@ class KalmanFilter:
 def runCamera():
     global ball_pos
     global ball_vel
+    global is_cam_setup
 
     cam1 = RealSense(serial=SERIAL1)
     cam1.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
@@ -119,8 +121,8 @@ def runCamera():
     cam2 = RealSense(serial=SERIAL2)
     cam2.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
-    ballLower = (6, 83, 149)
-    ballUpper = (20, 237, 255)
+    ballLower = (6, 83, 200)
+    ballUpper = (179, 255, 255)
 
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
 
@@ -135,6 +137,7 @@ def runCamera():
     num_memory = 1 # need to implement?
     kalman_filter = KalmanFilter(num_memory)
 
+    is_cam_setup = True
     #print(cam1._fx, cam1._fy)
     while True:
         ts = time.time_ns()
@@ -266,8 +269,8 @@ def runCamera():
         # z_estimated = cam1._fx * ball_diameter / (state_filtered[2] * 2)
 
         ball_pos[0] = state_filtered[0]
-        ball_pos[1] = state_filtered[1]
-        ball_pos[2] = state_filtered[2]
+        ball_pos[1] = state_filtered[2]
+        ball_pos[2] = state_filtered[1]
 
         state_filtered_que.append(state_filtered)
         if len(state_filtered_que) > 30:
@@ -362,36 +365,114 @@ def runCamera():
 
 
 
-
 indy = IndyDCP3(robot_ip='192.168.0.22', index=0)
 
-def bounce(robot: IndyDCP3, current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
-    robot.movetelel_abs(tpos = current_robot_pos - bounce_force * np.array([0, 0, 10, 0, 0, 0]))
+def print_coordinate():
+    print("x: " + str(ball_pos[0]) + "y: " + str(ball_pos[1]) + "z: " + str(ball_pos[2]))
+
+def robot_calibration(home_pos : np.ndarray, width, height):
+    print("starting calibration...")
+    time_per_step = 2
+    vel_ratio = 0.5
+    acc_ratio = 1.0
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    indy.movetelel_abs(home_pos, vel_ratio=0.9, acc_ratio=0.8)
+    time.sleep(1)
+    print("home")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([+width/2, +width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #1")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([-width/2, +width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #2")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([-width/2, -width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #3")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([+width/2, -width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #4")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([+width/2, +width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #5")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([-width/2, +width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #6")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([-width/2, -width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #7")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    indy.movetelel_abs(home_pos + np.array([+width/2, -width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    time.sleep(time_per_step)
+    print("pos #8")
+    print_coordinate()
+    ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    plt.show()
+
+def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
+    indy.movetelel_abs(tpos = current_robot_pos - bounce_force * np.array([0, 0, 10, 0, 0, 0]))
     time.sleep(0.05 * bounce_force)
-    robot.movetelel_abs(tpos = current_robot_pos)
+    indy.movetelel_abs(tpos = current_robot_pos)
     time.sleep(0.05 * bounce_force)
 
 #move_response = indy.movej(jtarget = [-27, -20, -74, 98, -27, -113])
 
 indy.stop_teleop()
 
-horizontal_orientation_xyz = np.array([90, 104.5, 90])
-home_pos = np.array([500, 10, 500, 95, 104.5, 90]) # x, y, z (mm), x, y, z (deg)
-init_jpos = indy.get_control_data()['q']
+home_pos = np.array([500, 10, 400, 95, 104.5, 90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
+
+init_jpos = indy.get_control_data()['q']
 
 while (indy.get_motion_data()['is_in_motion'] == True):
     time.sleep(0.01)
 time.sleep(1)
 
+# set the camera mode to teleop abs
 while (indy.get_control_data()['op_state'] != 17):
-    time.sleep(1)
     indy.start_teleop(method=TaskTeleopType.ABSOLUTE)
+    time.sleep(1)
 time.sleep(1)
 
 # initiate camera system
 camThread = threading.Thread(target = runCamera)
 camThread.start()
+
+while (not is_cam_setup) :
+    time.sleep(0.5)
+    #print("waiting for cam setup")
+
+print("cam setup done!")
+time.sleep(3)
 
 '''
 repeat = 5
@@ -412,41 +493,12 @@ while i <repeat :
     i = i + 1
 '''
 
-time.sleep(5)
+try:
+    robot_calibration(home_pos, 300, 100)
 
-avg_x = 0
-avg_y = 0
-avg_z = 0
-for i in range(10):
-    avg_x = avg_x + ball_pos[0]
-    avg_y = avg_y + ball_pos[1]
-    avg_z = avg_z + ball_pos[2]
-    time.sleep(1)
-avg_x = avg_x / 10
-avg_y = avg_y / 10
-avg_z = avg_z / 10
-print(avg_x)
-print(avg_y)
-print(avg_z)
+except:
+    print("error has been occured")
 
-indy.movetelel_abs(home_pos + np.array([0, +100, 0, 0, 0, 0]), vel_ratio=0.5, acc_ratio=1.0)
-
-time.sleep(1)
-avg_x = 0
-avg_y = 0
-avg_z = 0
-for i in range(10):
-    avg_x = avg_x + ball_pos[0]
-    avg_y = avg_y + ball_pos[1]
-    avg_z = avg_z + ball_pos[2]
-    time.sleep(1)
-avg_x = avg_x / 10
-avg_y = avg_y / 10
-avg_z = avg_z / 10
-print(avg_x)
-print(avg_y)
-print(avg_z)
-
-
-indy.stop_teleop()
-stop_camera = True
+finally:
+    indy.stop_teleop()
+    stop_camera = True
