@@ -28,6 +28,7 @@ import threading
 SERIAL1 = "138322252637"
 SERIAL2 = "138322250508"
 
+transform_matrix = np.eye(4)
 ball_pos = [0, 0, 0]
 ball_vel = [0, 0, 0]
 is_cam_setup = False
@@ -362,6 +363,44 @@ def runCamera():
 
 
 
+def calculate_affine_transform(robot_points, camera_points):
+    global transform_matrix
+    """
+    로봇 좌표계 -> 카메라 좌표계로 변환하는 3D 아핀 변환 행렬 계산
+    :param robot_points: 로봇 좌표계 점들 [(x1, y1, z1), (x2, y2, z2), ...] (8개 점)
+    :param camera_points: 카메라 좌표계 대응점들 [(x1, y1, z1), (x2, y2, z2), ...] (8개 점)
+    :return: 4x4 아핀 변환 행렬
+    """
+    # 동차 좌표계로 변환 (로봇 좌표계)
+    A = []
+    for x, y, z in robot_points:
+        A.append([x, y, z, 1])
+    A = np.array(A)  # 8x4 행렬
+    
+    # 카메라 좌표계 (타겟)
+    B = np.array(camera_points)  # 8x3 행렬
+    
+    # 최소 제곱법으로 변환 행렬 계산 (A * M = B)
+    M, residuals, rank, s = np.linalg.lstsq(A, B, rcond=None)
+    
+    # 4x4 변환 행렬 구성
+    T = np.eye(4)
+    T[:3, :] = M.T  # 상위 3x4 부분 적용
+
+    transform_matrix = T
+    
+
+def transform_point(point):
+    """
+    변환 행렬을 사용해 점 변환
+    :param T: 4x4 변환 행렬
+    :param point: 변환할 점 (x, y, z)
+    :return: 카메라 좌표계의 점 (x, y, z)
+    """
+    homogeneous_point = np.array([point[0], point[1], point[2], 1])
+    transformed = transform_matrix @ homogeneous_point
+    return transformed[:3]  # 동차 좌표 -> 3D 좌표
+
 
 
 
@@ -370,7 +409,7 @@ indy = IndyDCP3(robot_ip='192.168.0.22', index=0)
 def print_coordinate():
     print("x: " + str(ball_pos[0]) + "y: " + str(ball_pos[1]) + "z: " + str(ball_pos[2]))
 
-def robot_calibration(home_pos : np.ndarray, width, height):
+def robot_calibration(home_pos : np.ndarray, w, h):
     print("starting calibration...")
     time_per_step = 2
     vel_ratio = 0.5
@@ -379,59 +418,81 @@ def robot_calibration(home_pos : np.ndarray, width, height):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
 
+    target_points = [
+        (w/2, w/2, h/2),  # 1
+        (-w/2, w/2, h/2),  # 2
+        (-w/2, -w/2, h/2),  # 3
+        (w/2, -w/2, h/2),  # 4
+        (w/2, w/2, -h/2),  # 5
+        (-w/2, w/2, -h/2),  # 6
+        (-w/2, -w/2, -h/2),  # 7
+        (w/2, -w/2, -h/2)   # 8
+    ]
+    camera_points = []
+
     indy.movetelel_abs(home_pos, vel_ratio=0.9, acc_ratio=0.8)
     time.sleep(1)
     print("home")
     print_coordinate()
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([+width/2, +width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([+w/2, +w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #1")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([-width/2, +width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([-w/2, +w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #2")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([-width/2, -width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([-w/2, -w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #3")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([+width/2, -width/2, +height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([+w/2, -w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #4")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([+width/2, +width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([+w/2, +w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #5")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([-width/2, +width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([-w/2, +w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #6")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([-width/2, -width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([-w/2, -w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #7")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
-    indy.movetelel_abs(home_pos + np.array([+width/2, -width/2, -height/2, 0, 0, 0]), vel_ratio, acc_ratio)
+    indy.movetelel_abs(home_pos + np.array([+w/2, -w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
     print("pos #8")
     print_coordinate()
+    camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
+
+    calculate_affine_transform(target_points, camera_points)
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
@@ -495,9 +556,16 @@ while i <repeat :
 
 try:
     robot_calibration(home_pos, 300, 100)
+    time.sleep(3)
 
-except:
-    print("error has been occured")
+    indy.movetelel_abs(home_pos, 0.5, 1.0)
+    time.sleep(1)
+
+    print_coordinate()
+    t = transform_point((0, 0, 0))
+    print(t)
+except Exception as e:
+    print(f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}")
 
 finally:
     indy.stop_teleop()
