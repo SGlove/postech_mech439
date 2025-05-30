@@ -564,6 +564,7 @@ try:
     print_coordinate()
     t = transform_point((0, 0, 0))
     print(t)
+    
 except Exception as e:
     print(f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}")
 
