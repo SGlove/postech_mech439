@@ -409,10 +409,10 @@ def transform_point(point):
 indy = IndyDCP3(robot_ip='192.168.0.22', index=0)
 
 def print_coordinate():
-    print("x: " + str(ball_pos[0]) + "y: " + str(ball_pos[1]) + "z: " + str(ball_pos[2]))
+    print("x: " + str(ball_pos[0]) + " y: " + str(ball_pos[1]) + " z: " + str(ball_pos[2]))
 
 def robot_calibration(home_pos : np.ndarray, w, h):
-    print("starting calibration...")
+    print("#### starting calibration... ####")
     time_per_step = 2
     vel_ratio = 0.5
     acc_ratio = 1.0
@@ -434,62 +434,62 @@ def robot_calibration(home_pos : np.ndarray, w, h):
 
     indy.movetelel_abs(home_pos, vel_ratio=0.9, acc_ratio=0.8)
     time.sleep(1)
-    print("home")
+    print("home ", end='')
     print_coordinate()
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([+w/2, +w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #1")
+    print("pos #1 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([-w/2, +w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #2")
+    print("pos #2 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([-w/2, -w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #3")
+    print("pos #3 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([+w/2, -w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #4")
+    print("pos #4 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([+w/2, +w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #5")
+    print("pos #5 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([-w/2, +w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #6")
+    print("pos #6 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([-w/2, -w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #7")
+    print("pos #7 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([+w/2, -w/2, -h/2, 0, 0, 0]), vel_ratio, acc_ratio)
     time.sleep(time_per_step)
-    print("pos #8")
+    print("pos #8 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
@@ -499,6 +499,7 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
+    print("#### check points with plot figure ####")
     plt.show()
 
 def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
@@ -534,23 +535,39 @@ while (not is_cam_setup) :
     time.sleep(0.5)
     #print("waiting for cam setup")
 
-print("cam setup done!")
+print("#### cam setup done! ####")
 time.sleep(3)
 
 
 try:
     workspace_width = 300
     workspace_height = 100
+    vel_threshold = 1
     robot_calibration(home_pos, workspace_width, workspace_height)
-    time.sleep(3)
+    time.sleep(2)
+    indy.movetelel_abs(home_pos, 0.5, 1.0)
+    time.sleep(2)
 
     while (True):
         if (keyboard.is_pressed('esc')):
             break
 
         ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
+        print(ball_pos_ws)
 
-        print("vel_z: " + str(ball_vel[2]))
+        if ((np.abs(ball_pos_ws[0]) > workspace_width/2) or (np.abs(ball_pos_ws[1]) > workspace_width/2)):
+            print("#### ball is out of workspace. stop program. ####")
+            break
+
+        #print("vel_z: " + str(ball_vel[2]))
+        target_z = 0
+
+        if (ball_vel[2] > vel_threshold):
+            target_z = -workspace_height/2
+        elif (ball_vel[2] < -vel_threshold):
+            target_z = workspace_height/2
+
+        indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
         #indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], -workspace_height/2, 0, 0, 0]))
     
 except Exception as e:
