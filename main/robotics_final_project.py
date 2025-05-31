@@ -500,40 +500,71 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     print("#### check points with plot figure ####")
-    plt.show()
+    #plt.show()
 
-def compute_paddle_orientation(ball_pos, ball_vel,
-                               apex_height=0.25,   # in m it's height above the racket    
-                               restitution=0.92,      # to cha,ge when we will test it (between 0.88–0.94)
-                               damping=1.0,           # 1 = full lateral correction in one hit
-                               g=9.81):
+def compute_linear_roll_pitch(x, y, width, max_degree):
+    # 정규화: -1.0 ~ 1.0 범위
+    half = width / 2
+    x_norm = np.clip(x / half, -1.0, 1.0)
+    y_norm = np.clip(y / half, -1.0, 1.0)
 
+    roll_rad = np.radians(y_norm * max_degree)
+    pitch_rad = np.radians(-x_norm * max_degree)
 
-    x, y, _          = ball_pos
-    vx_in, vy_in, vz_in = ball_vel
+    return roll_rad, pitch_rad
 
-    # vertical speed needed for chosen apex
-    vz_out = np.sqrt(2 * g * apex_height)
+def euler_xyz_to_matrix(euler_deg):
+    x, y, z = np.radians(euler_deg)
 
-    # time until that apex, then horizontal speeds that cancel x-y error
-    t_up   = vz_out / g
-    vx_out = -damping * x / t_up
-    vy_out = -damping * y / t_up
-    v_des  = np.array([vx_out, vy_out, vz_out])
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(x), -np.sin(x)],
+        [0, np.sin(x), np.cos(x)]
+    ])
+    Ry = np.array([
+        [np.cos(y), 0, np.sin(y)],
+        [0, 1, 0],
+        [-np.sin(y), 0, np.cos(y)]
+    ])
+    Rz = np.array([
+        [np.cos(z), -np.sin(z), 0],
+        [np.sin(z), np.cos(z), 0],
+        [0, 0, 1]
+    ])
+    return Rz @ Ry @ Rx
 
-    v_in   = np.array([vx_in, vy_in, vz_in])
-    n      = (v_in - v_des) / ((1 + restitution) *
-                               np.linalg.norm(v_in - v_des))
+def matrix_to_euler_xyz(R):
+    sy = np.sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    if abs(R[0, 2]) < 1.0:
+        x = np.atan2(R[2, 1], R[2, 2])
+        y = np.arctan2(-R[2,0], sy)
+        z = np.arctan2(R[1,0], R[0,0])
+    else:
+        x = np.atan2(-R[1,2], R[1,1])
+        y = np.atan2(-R[2,0], sy)
+        z = 0.0
 
-    # normal points upward (nz > 0)
-    if n[2] < 0:
-        n = -n
-    nx, ny, nz = n      
+    return np.degrees([x, y, z])
 
-    roll  = -np.arcsin(ny)   # about +/-X (to test it to know)
-    pitch =  np.arcsin(nx)   # about +/-Y (same)
+def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
+    R_orig = euler_xyz_to_matrix(original_angles_deg)
 
-    return roll, pitch, v_des
+    # roll (X), pitch (Y)
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(roll_rad), -np.sin(roll_rad)],
+        [0, np.sin(roll_rad),  np.cos(roll_rad)]
+    ])
+
+    Ry = np.array([
+        [ np.cos(pitch_rad), 0, np.sin(pitch_rad)],
+        [0, 1, 0],
+        [-np.sin(pitch_rad), 0, np.cos(pitch_rad)]
+    ])
+
+    R_final = Ry @ Rx @ R_orig
+
+    return matrix_to_euler_xyz(R_final)
 
 def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
     indy.movetelel_abs(tpos = current_robot_pos - bounce_force * np.array([0, 0, 10, 0, 0, 0]))
@@ -541,7 +572,17 @@ def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_fo
     indy.movetelel_abs(tpos = current_robot_pos)
     time.sleep(0.05 * bounce_force)
 
-#move_response = indy.movej(jtarget = [-27, -20, -74, 98, -27, -113])
+
+
+
+
+
+
+
+
+
+
+########################### main code ###########################
 
 indy.stop_teleop()
 
@@ -575,6 +616,7 @@ time.sleep(5)
 try:
     workspace_width = 300
     workspace_height = 200
+    workspace_tolerance = 50
     vel_threshold = 1
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
@@ -605,7 +647,8 @@ try:
 
         ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
 
-        if ((np.abs(ball_pos_ws[0]) > workspace_width/2) or (np.abs(ball_pos_ws[1]) > workspace_width/2)):
+        if ((np.abs(ball_pos_ws[0]) > (workspace_width/2 + workspace_tolerance))
+            or (np.abs(ball_pos_ws[1]) > (workspace_width/2 + workspace_tolerance))):
             print("#### ball is out of workspace. stop program. ####")
             break
 
@@ -617,7 +660,10 @@ try:
             target_z = -workspace_height/2 + bounce_height
 
         #indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
-        indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], target_z, 0, 0, 0]))
+        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos_ws[0], ball_pos_ws[1], workspace_width, 10)
+        lacket_angles = apply_roll_pitch(home_pos[3:6], roll_rad, pitch_rad)
+        indy.movetelel_abs(np.array([home_pos[0] + ball_pos_ws[0], home_pos[1] + ball_pos_ws[1], home_pos[2] + target_z,
+                                    lacket_angles[0], lacket_angles[1], lacket_angles[2]]))
         #indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], -workspace_height/2, 0, 0, 0]))
     
 except Exception as e:
