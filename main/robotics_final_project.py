@@ -586,10 +586,10 @@ def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_fo
 
 indy.stop_teleop()
 
-home_pos = np.array([550, 10, 400, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([570, 10, 360, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
-init_jpos = indy.get_control_data()['q']
+#init_jpos = indy.get_control_data()['q']
 
 while (indy.get_motion_data()['is_in_motion'] == True):
     time.sleep(0.01)
@@ -614,8 +614,8 @@ time.sleep(5)
 
 
 try:
-    workspace_width = 300
-    workspace_height = 200
+    workspace_width = 350
+    workspace_height = 250
     workspace_tolerance = 50
     vel_threshold = 1
     robot_calibration(home_pos, workspace_width, workspace_height)
@@ -624,7 +624,7 @@ try:
     time.sleep(2)
 
     target_z = -workspace_height/2
-    bounce_height = 80
+    bounce_height = 100
 
     start_time = time.time()
     count = 0
@@ -649,8 +649,20 @@ try:
 
         if ((np.abs(ball_pos_ws[0]) > (workspace_width/2 + workspace_tolerance))
             or (np.abs(ball_pos_ws[1]) > (workspace_width/2 + workspace_tolerance))):
-            print("#### ball is out of workspace. stop program. ####")
-            break
+            print("#### ball is out of workspace. esc to stop, s to start again ####")
+            selection = 'esc'
+            while (True):
+                if (keyboard.is_pressed('esc')):
+                    selection = 'esc'
+                    break
+                elif (keyboard.is_pressed('s')):
+                    selection = 's'
+                    break
+                time.sleep(0.1)
+            if (selection == 's'):
+                continue
+            else:
+                break
 
         #print("vel_z: " + str(ball_vel[2]))
 
