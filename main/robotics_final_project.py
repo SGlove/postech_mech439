@@ -500,7 +500,40 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     print("#### check points with plot figure ####")
-    #plt.show()
+    plt.show()
+
+def compute_paddle_orientation(ball_pos, ball_vel,
+                               apex_height=0.25,   # in m it's height above the racket    
+                               restitution=0.92,      # to cha,ge when we will test it (between 0.88–0.94)
+                               damping=1.0,           # 1 = full lateral correction in one hit
+                               g=9.81):
+
+
+    x, y, _          = ball_pos
+    vx_in, vy_in, vz_in = ball_vel
+
+    # vertical speed needed for chosen apex
+    vz_out = np.sqrt(2 * g * apex_height)
+
+    # time until that apex, then horizontal speeds that cancel x-y error
+    t_up   = vz_out / g
+    vx_out = -damping * x / t_up
+    vy_out = -damping * y / t_up
+    v_des  = np.array([vx_out, vy_out, vz_out])
+
+    v_in   = np.array([vx_in, vy_in, vz_in])
+    n      = (v_in - v_des) / ((1 + restitution) *
+                               np.linalg.norm(v_in - v_des))
+
+    # normal points upward (nz > 0)
+    if n[2] < 0:
+        n = -n
+    nx, ny, nz = n      
+
+    roll  = -np.arcsin(ny)   # about +/-X (to test it to know)
+    pitch =  np.arcsin(nx)   # about +/-Y (same)
+
+    return roll, pitch, v_des
 
 def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
     indy.movetelel_abs(tpos = current_robot_pos - bounce_force * np.array([0, 0, 10, 0, 0, 0]))
@@ -512,7 +545,7 @@ def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_fo
 
 indy.stop_teleop()
 
-home_pos = np.array([550, 10, 400, 95, 104.5, 90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([550, 10, 400, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 init_jpos = indy.get_control_data()['q']
