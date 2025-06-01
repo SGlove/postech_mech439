@@ -2,4 +2,4 @@
 
 ping pong robot with Neuromeka Indy 7
 
-*Please make a new branch for new work*
+*Please make a new branch for a new work*
