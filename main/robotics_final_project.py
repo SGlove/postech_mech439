@@ -23,18 +23,19 @@ import threading
 import keyboard
 
 
+transform_matrix = np.eye(4)
+ball_pos = [0, 0, 0]
+ball_vel = [0, 0, 0]
+is_cam_setup = False
+stop_camera = False
+
+
 
 ########################### vision code ###########################
 
 
 SERIAL1 = "138322252637"
 SERIAL2 = "138322250508"
-
-transform_matrix = np.eye(4)
-ball_pos = [0, 0, 0]
-ball_vel = [0, 0, 0]
-is_cam_setup = False
-stop_camera = False
 
 def nothing(x):
     pass
@@ -572,13 +573,6 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
     return matrix_to_euler_xyz(R_final)
 
-def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_force ):
-    indy.movetelel_abs(tpos = current_robot_pos - bounce_force * np.array([0, 0, 10, 0, 0, 0]))
-    time.sleep(0.05 * bounce_force)
-    indy.movetelel_abs(tpos = current_robot_pos)
-    time.sleep(0.05 * bounce_force)
-
-
 
 
 
@@ -592,7 +586,7 @@ def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_fo
 
 indy.stop_teleop()
 
-home_pos = np.array([570, 10, 380, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([570, 10, 430, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -618,22 +612,18 @@ while (not is_cam_setup) :
 print("#### cam setup done! ####")
 time.sleep(5)
 
-app = QApplication(sys.argv)
-ui = BallPositionUI()
-ui.show()
-
 try:
     workspace_width = 350
-    workspace_height = 250
-    workspace_tolerance = 50
-    vel_threshold = 1.5
+    workspace_height = 290
+    workspace_tolerance = 5
+    vel_threshold = 0.8
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
     time.sleep(2)
 
     target_z = -workspace_height/2
-    bounce_height = 120
+    bounce_height = 100
 
     vel_data = open("file_velocity_data.txt", 'w')
     time_data = open("file_time_data.txt", 'w')
@@ -656,15 +646,15 @@ try:
         vel_data.write(str(ball_vel[0]) + "," + str(ball_vel[1]) + "," + str(ball_vel[2]) + "\n")
         time_data.write(str(now_time) + "\n")
 
+        ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
+        z_pos_data.write(str(ball_pos_ws[2]) + "\n")
+
         count = count + 1
         if (now_time - start_time > 1):
             print("sampling per second : " + str(count))
             count = 0
             start_time = now_time
 
-        ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
-
-        z_pos_data.write(str(ball_pos_ws[2]) + "\n")
 
         if ((np.abs(ball_pos_ws[0]) > (workspace_width/2 + workspace_tolerance))
             or (np.abs(ball_pos_ws[1]) > (workspace_width/2 + workspace_tolerance))):
@@ -691,7 +681,7 @@ try:
             target_z = -workspace_height/2 + bounce_height
 
         #indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
-        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos_ws[0], ball_pos_ws[1], workspace_width, 10)
+        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos_ws[0], ball_pos_ws[1], workspace_width, 11)
         lacket_angles = apply_roll_pitch(home_pos[3:6], roll_rad, pitch_rad)
         indy.movetelel_abs(np.array([home_pos[0] + ball_pos_ws[0], home_pos[1] + ball_pos_ws[1], home_pos[2] + target_z,
                                     lacket_angles[0], lacket_angles[1], lacket_angles[2]]))
@@ -706,4 +696,3 @@ finally:
     vel_data.close()
     time_data.close()
     z_pos_data.close()
-    sys.exit(app.exec_())
