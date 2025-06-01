@@ -23,6 +23,7 @@ import threading
 import keyboard
 
 
+
 ########################### vision code ###########################
 
 
@@ -591,7 +592,7 @@ def bounce(current_robot_pos: np.ndarray, target_ball_pos: np.ndarray, bounce_fo
 
 indy.stop_teleop()
 
-home_pos = np.array([570, 10, 360, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([570, 10, 380, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -617,19 +618,26 @@ while (not is_cam_setup) :
 print("#### cam setup done! ####")
 time.sleep(5)
 
+app = QApplication(sys.argv)
+ui = BallPositionUI()
+ui.show()
 
 try:
     workspace_width = 350
     workspace_height = 250
     workspace_tolerance = 50
-    vel_threshold = 1
+    vel_threshold = 1.5
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
     time.sleep(2)
 
     target_z = -workspace_height/2
-    bounce_height = 100
+    bounce_height = 120
+
+    vel_data = open("file_velocity_data.txt", 'w')
+    time_data = open("file_time_data.txt", 'w')
+    z_pos_data = open("file_z_pos_data.txt", 'w')
 
     start_time = time.time()
     count = 0
@@ -644,13 +652,19 @@ try:
         if (keyboard.is_pressed('esc')):
             break
         
+        now_time = time.time()
+        vel_data.write(str(ball_vel[0]) + "," + str(ball_vel[1]) + "," + str(ball_vel[2]) + "\n")
+        time_data.write(str(now_time) + "\n")
+
         count = count + 1
-        if (time.time() - start_time > 1):
+        if (now_time - start_time > 1):
             print("sampling per second : " + str(count))
             count = 0
-            start_time = time.time()
+            start_time = now_time
 
         ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
+
+        z_pos_data.write(str(ball_pos_ws[2]) + "\n")
 
         if ((np.abs(ball_pos_ws[0]) > (workspace_width/2 + workspace_tolerance))
             or (np.abs(ball_pos_ws[1]) > (workspace_width/2 + workspace_tolerance))):
@@ -689,3 +703,7 @@ except Exception as e:
 finally:
     indy.stop_teleop()
     stop_camera = True
+    vel_data.close()
+    time_data.close()
+    z_pos_data.close()
+    sys.exit(app.exec_())
