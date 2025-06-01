@@ -123,8 +123,8 @@ def runCamera():
     cam2 = RealSense(serial=SERIAL2)
     cam2.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
-    ballLower = (6, 83, 200)
-    ballUpper = (179, 255, 255)
+    ballLower = (6, 126, 219)
+    ballUpper = (78, 255, 255)
 
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
 
@@ -389,6 +389,8 @@ def calculate_affine_transform(robot_points, camera_points):
     T = np.eye(4)
     T[:3, :] = M.T  # 상위 3x4 부분 적용
 
+    np.savetxt('file_transform_matrix.txt', T, fmt='%.6f')
+
     transform_matrix = T
     
 
@@ -499,8 +501,11 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
-    print("#### check points with plot figure ####")
+    #print("#### check points with plot figure ####")
     #plt.show()
+
+    np.savetxt('file_cam_point.txt', camera_points, fmt='%.6f')
+
 
 def compute_linear_roll_pitch(x, y, width, max_degree):
     # 정규화: -1.0 ~ 1.0 범위
