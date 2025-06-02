@@ -290,9 +290,13 @@ def runCamera():
         except:
             vx=0;vy=0;vz=0
 
+        '''
         ball_vel[0] = vx
         ball_vel[1] = vy
         ball_vel[2] = vz
+        '''
+
+        ball_vel = transform_point([vx, vy, vz])
 
         # x_obs_list = [x[3] for x in state_filtered_que if x is not None]
         # y_obs_list = [x[3] for x in state_filtered_que if x is not None]
@@ -681,7 +685,7 @@ try:
             target_z = -workspace_height/2 + bounce_height
 
         #indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
-        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos_ws[0], ball_pos_ws[1], workspace_width, 11)
+        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos_ws[0], ball_pos_ws[1], workspace_width, 10)
         lacket_angles = apply_roll_pitch(home_pos[3:6], roll_rad, pitch_rad)
         indy.movetelel_abs(np.array([home_pos[0] + ball_pos_ws[0], home_pos[1] + ball_pos_ws[1], home_pos[2] + target_z,
                                     lacket_angles[0], lacket_angles[1], lacket_angles[2]]))
