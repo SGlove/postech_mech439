@@ -9,8 +9,8 @@ import imutils
 from utils.Toolbox import *
 from utils.Camera.realsense import RealSense, D455_DEFAULT_COLOR, D455_DEFAULT_DEPTH, L515_DEFAULT_DEPTH, L515_DEFAULT_COLOR
 
-REALSENSE_SERIAL = "138322252637"
-#REALSENSE_SERIAL = "138322250508"
+REALSENSE_SERIAL = "138322252637" # front cam
+#REALSENSE_SERIAL = "138322250508" # side cam
 
 
 def nothing(x):

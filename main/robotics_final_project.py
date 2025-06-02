@@ -23,6 +23,8 @@ import threading
 import keyboard
 
 
+racket_pos = np.array([0, 0, 0])
+racket_vel = np.array([0, 0, 0])
 transform_matrix = np.eye(4)
 ball_pos = np.array([0, 0, 0]) # in mm
 ball_vel = np.array([0, 0, 0]) # in mm/s
@@ -124,40 +126,6 @@ class KalmanFilter:
         self.input = np.array([[np.float32(1)]]) # 제어 입력 벡터
 
 
-    # def correct(self, x, y):
-    #     measured = np.array([[np.float32(x)], [np.float32(y)]])
-    #     self.kf.correct(measured)
-    #     predicted = self.kf.predict(1).reshape(-1)
-    #     return predicted
-
-    def predict(self, x, y, z, vx, vy, vz, predict_interval): # predict_interval: 예측하고자 하는 시간 길이 (s)
-        measured = np.array([[np.float32(x)], [np.float32(y)], [np.float32(z)], [np.float32(vx)], [np.float32(vy)], [np.float32(vz)]])
-        statePost = self.kf.correct(measured) # correct: 예측값과 실제 센서 측정값의 차이를 보정하여 필터 상태 최신화
-        statePre = self.kf.predict(self.input).reshape(-1) 
-
-        x_pred_list = []
-        y_pred_list = []
-        z_pred_list = []
-        cov_pred_list = []
-
-        statePredict = statePost.copy()
-        errorCovPredict = self.kf.errorCovPost.copy()
-
-        x_pred_list.append(statePredict[0, 0])
-        y_pred_list.append(statePredict[1, 0])
-        z_pred_list.append(statePredict[2, 0])
-        cov_pred_list.append(errorCovPredict)
-        num_predict = int(predict_interval / self.dt)
-        for i in range(num_predict):
-            statePredict = self.kf.transitionMatrix @ statePredict + self.kf.controlMatrix @ self.input
-            errorCovPredict = self.kf.transitionMatrix @ errorCovPredict + self.kf.transitionMatrix.T @ self.kf.processNoiseCov
-            x_pred_list.append(statePredict[0, 0])
-            y_pred_list.append(statePredict[1, 0])
-            z_pred_list.append(statePredict[2, 0])
-            cov_pred_list.append(errorCovPredict)
-
-        return x_pred_list, y_pred_list, z_pred_list, cov_pred_list
-
 def runCamera():
     global ball_pos
     global ball_vel
@@ -169,7 +137,7 @@ def runCamera():
     cam2 = RealSense(serial=SERIAL2)
     cam2.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
-    ballLower = (6, 126, 219)
+    ballLower = (6, 126, 176)
     ballUpper = (78, 255, 255)
 
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
@@ -184,7 +152,7 @@ def runCamera():
     prev_pos = None
     last_time = time.time()
 
-    num_memory = 1 # need to implement?
+    # num_memory = 1 # need to implement?
 
     is_cam_setup = True
     #print(cam1._fx, cam1._fy)
@@ -234,17 +202,21 @@ def runCamera():
 
             ((u1, v1), r1) = cv2.minEnclosingCircle(c1)
 
+            ''' # maybe redundant
             x1 = u1 / cam1._fx
             y1 = v1 / cam1._fx
+            ''' # maybe redundant
 
             M1 = cv2.moments(c1)
             uc1 = M1["m10"] / M1["m00"]
             vc1 = M1["m01"] / M1["m00"]
             wc1 = ball_diameter / (r1 * 2 / cam1._fx)
 
+            ''' # maybe redundant
             xc1 = - wc1
             yc1 = uc1 / cam1._fx
             zc1 = - vc1 / cam1._fx
+            ''' # maybe redundant
 
             state_observed1 = np.array([uc1, vc1, wc1, r1,0, 0, 0])
 
@@ -276,17 +248,21 @@ def runCamera():
 
             ((u2, v2), r2) = cv2.minEnclosingCircle(c2)
 
+            ''' # maybe redundant
             x2 = u2 / cam2._fx
             y2 = v2 / cam2._fx
+            ''' # maybe redundant
 
             M2 = cv2.moments(c2)
             uc2 = M2["m10"] / M2["m00"]
             vc2 = M2["m01"] / M2["m00"]
             wc2 = ball_diameter / (r2* 2 / cam2._fx)
 
+            ''' # maybe redundant
             xc2 = - wc2
             yc2 = uc2 / cam2._fx
             zc2 = - vc2 / cam2._fx
+            ''' # maybe redundant
 
             vc2=vc2-46.8
             uc2=uc2-19
@@ -319,10 +295,14 @@ def runCamera():
 
         try:
             curr_time = time.time()
-            if (prev_pos is not None):
-                ball_vel = (ball_pos - prev_pos) / (curr_time - last_time)
-            prev_pos = ball_pos
-            last_time = curr_time
+            if (prev_pos is None):
+                last_time = curr_time
+                prev_pos = ball_pos
+            else :
+                if ((curr_time - last_time) > 0.05):
+                    ball_vel = (ball_pos - prev_pos) / (curr_time - last_time)
+                    last_time = curr_time
+                    prev_pos = ball_pos
         except:
             ball_vel = np.array([0, 0, 0])
 
@@ -348,11 +328,9 @@ def runCamera():
             cv2.putText(img_rgb1, '{0:02.1f} FPS'.format(1/((tf-ts)/1e9)), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 2,
                         (0, 0, 0), 5, cv2.LINE_AA)
 
-        output1 = np.vstack((img_rgb1))
-        #output1 = np.vstack((img_rgb1, img_depth1))
+        output1 = np.vstack((img_rgb1, img_depth1))
         output1 = cv2.resize(output1, dsize=(640, 720), interpolation=cv2.INTER_AREA)
-        output2 = np.vstack((img_rgb2))
-        #output2 = np.vstack((img_rgb2, img_depth2))
+        output2 = np.vstack((img_rgb2, img_depth2))
         output2 = cv2.resize(output2, dsize=(640, 720), interpolation=cv2.INTER_AREA)
         combined_output=np.hstack((output1,output2))
         cv2.imshow('RealSense', combined_output)
@@ -407,7 +385,7 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     ax.scatter(ball_pos[0], ball_pos[1], ball_pos[2])
 
     indy.movetelel_abs(home_pos + np.array([+w/2, +w/2, +h/2, 0, 0, 0]), vel_ratio, acc_ratio)
-    time.sleep(time_per_step)
+    time.sleep(time_per_step + 0.5)
     print("pos #1 ", end='')
     print_coordinate()
     camera_points.append((ball_pos[0], ball_pos[1], ball_pos[2]))
@@ -471,6 +449,31 @@ def robot_calibration(home_pos : np.ndarray, w, h):
     #plt.show()
 
     np.savetxt('file_cam_point.txt', camera_points, fmt='%.6f')
+
+
+
+############### test ###############
+def compute_racket_orientation(target_z, restitution=0.85):
+    pos = np.array(ball_pos)
+    vel_in = np.array(ball_vel)
+
+    target = np.array([0.0, 0.0, target_z])
+    vel_out = (target - pos)
+    vel_out = vel_out / np.linalg.norm(vel_out) * np.linalg.norm(vel_in) * restitution
+
+    n = vel_in - vel_out
+    n = n / np.linalg.norm(n)
+
+    # 라켓 normal 벡터 → (roll = x축 회전), (pitch = y축 회전)
+    roll_rad  = np.arcsin(-n[0])  # x축 기준 기울기
+    pitch_rad = np.arcsin(n[1])   # y축 기준 기울기
+
+    return roll_rad, pitch_rad
+
+
+
+
+
 
 
 def compute_linear_roll_pitch(x, y, width, max_degree):
@@ -550,7 +553,7 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
 indy.stop_teleop()
 
-home_pos = np.array([570, 10, 430, -85, 75.5, -90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([570, 10, 430, -85, 73.5, -90]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -580,18 +583,21 @@ try:
     workspace_width = 350
     workspace_height = 290
     workspace_tolerance = 5
-    vel_threshold = 5000 # terminal velocity of pingpong ball is approx. 9300mm/s
+    vel_threshold = 200 # in mm/s
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
     time.sleep(2)
 
     target_z = -workspace_height/2
+    orientation_lock = False
     bounce_height = 100
 
     pos_data = open("file_pos_data.txt", 'w')
     vel_data = open("file_vel_data.txt", 'w')
     time_data = open("file_time_data.txt", 'w')
+    robot_pos_data = open("file_robot_pos_data.txt", 'w')
+    robot_vel_data = open("file_robot_vel_data.txt", 'w')
 
     start_time = time.time()
     count = 0
@@ -605,13 +611,16 @@ try:
     while (True):
         if (keyboard.is_pressed('esc')):
             break
+
+        racket_pos = indy.get_control_state()['p']
+        racket_vel = indy.get_control_state()['pdot']
+        robot_pos_data.write(str(racket_pos[0]) + "," + str(racket_pos[1]) + "," + str(racket_pos[2]) + "\n")
+        robot_vel_data.write(str(racket_vel[0]) + "," + str(racket_vel[1]) + "," + str(racket_vel[2]) + "\n")
         
         now_time = time.time()
         pos_data.write(str(ball_pos[0]) + "," + str(ball_pos[1]) + "," + str(ball_pos[2]) + "\n")
         vel_data.write(str(ball_vel[0]) + "," + str(ball_vel[1]) + "," + str(ball_vel[2]) + "\n")
         time_data.write(str(now_time) + "\n")
-
-        #ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2])) # integrated into cv code
 
         count = count + 1
         if (now_time - start_time > 1):
@@ -636,20 +645,35 @@ try:
                 continue
             else:
                 break
+        
 
-        #print("vel_z: " + str(ball_vel[2]))
+        #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
+        if (orientation_lock):
+            pass
+        elif (ball_vel[2] < -vel_threshold): # if the ball is dropping
+            test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height)
+            if (np.abs(test_roll_rad) > 0.5): # ~= +-30 deg
+                test_roll_rad = 0
+            if (np.abs(test_pitch_rad) > 0.5): # ~= +-30 deg
+                test_pitch_rad = 0
+            #print("racket orientation : " + str(np.degrees(test_roll_rad)) + ", " + str(np.degrees(test_pitch_rad)))
+        else:
+            test_roll_rad = 0
+            test_pitch_rad = 0
 
         if (ball_vel[2] > vel_threshold):
             target_z = -workspace_height/2
+            orientation_lock = False
         elif (ball_vel[2] < -vel_threshold):
             target_z = -workspace_height/2 + bounce_height
+            orientation_lock = True
 
-        #indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
-        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-        lacket_angles = apply_roll_pitch(home_pos[3:6], roll_rad, pitch_rad)
+        #print("Ref. value : " + str(np.degrees(roll_rad)) + "," + str(np.degrees(pitch_rad)) + " Test value : " + str(test_roll_deg) + "," + str(test_pitch_deg))
+        lacket_angles = apply_roll_pitch(home_pos[3:6], test_roll_rad, test_pitch_rad)
+
         indy.movetelel_abs(np.array([home_pos[0] + ball_pos[0], home_pos[1] + ball_pos[1], home_pos[2] + target_z,
                                     lacket_angles[0], lacket_angles[1], lacket_angles[2]]))
-        #indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], -workspace_height/2, 0, 0, 0]))
+        
     
 except Exception as e:
     print(f"{type(e).__name__} at line {e.__traceback__.tb_lineno} of {__file__}: {e}")
@@ -660,3 +684,8 @@ finally:
     pos_data.close()
     vel_data.close()
     time_data.close()
+    robot_pos_data.close()
+    robot_vel_data.close()
+
+    time.sleep(0.5)
+    indy.recover()
