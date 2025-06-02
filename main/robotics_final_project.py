@@ -610,7 +610,7 @@ try:
 
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 155
+    bounce_height = 120
 
     pos_data = open("file_pos_data.txt", 'w')
     vel_data = open("file_vel_data.txt", 'w')
@@ -710,4 +710,5 @@ finally:
     robot_vel_data.close()
 
     time.sleep(2)
+    indy.get_violation_data()
     indy.recover()
