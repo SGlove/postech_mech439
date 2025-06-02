@@ -628,11 +628,10 @@ try:
     indy.movetelel_abs(home_pos, 0.5, 1.0)
     time.sleep(2)
 
-    vel_threshold = 80 # in mm/s
-    height_threshold = 200
+    vel_threshold = 150 # in mm/s
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 160
+    bounce_height = 110
     test_roll_rad = 0
     test_pitch_rad = 0
 
@@ -644,6 +643,10 @@ try:
 
     start_time = time.time()
     count = 0
+
+    max_ball_z_pos = 0
+    max_ball_z_time = time.time()
+    is_ball_falling = False
 
     print("#### detach the ball and press s ####")
     while (True):
@@ -691,27 +694,37 @@ try:
                 break
         
         
-        if (ball_vel[2] > vel_threshold) or (ball_pos[2] > workspace_height/2):
-            target_z = -workspace_height/2
+        if (is_ball_falling):
             orientation_lock = False
-        elif (ball_pos[2] < -workspace_height/2 + bounce_height + height_threshold): #ball_vel[2] < -vel_threshold
-            target_z = -workspace_height/2 + bounce_height
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.28)
+            if (now_time >= when_to_up):
+                orientation_lock = True
+                target_z = -workspace_height/2 + bounce_height + 10
+            if (ball_vel[2] > vel_threshold):
+                target_z = -workspace_height/2
+                is_ball_falling = False
+        else :
             orientation_lock = True
+            test_roll_rad = 0
+            test_pitch_rad = 0
+            if (ball_vel[2] >= 0):
+                max_ball_z_pos = ball_pos[2]
+                max_ball_z_time = now_time
+            elif (ball_pos[2] > max_ball_z_pos):
+                max_ball_z_pos = ball_pos[2]
+                max_ball_z_time = now_time
+            elif (ball_vel[2] < -vel_threshold):
+                is_ball_falling = True
+        
 
 
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-        if (orientation_lock):
-            pass
-        elif (ball_vel[2] < -vel_threshold): # if the ball is dropping
+        if (not orientation_lock):
             test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (np.abs(test_roll_rad) > 0.5): # ~= +-30 deg
                 test_roll_rad = 0
             if (np.abs(test_pitch_rad) > 0.5): # ~= +-30 deg
                 test_pitch_rad = 0
-            #print("racket orientation : " + str(np.degrees(test_roll_rad)) + ", " + str(np.degrees(test_pitch_rad)))
-        else:
-            test_roll_rad = 0
-            test_pitch_rad = 0
 
 
         #print("Ref. value : " + str(np.degrees(roll_rad)) + "," + str(np.degrees(pitch_rad)) + " Test value : " + str(test_roll_deg) + "," + str(test_pitch_deg))
