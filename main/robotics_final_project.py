@@ -453,7 +453,7 @@ def robot_calibration(home_pos : np.ndarray, w, h):
 
 
 ############### test ###############
-def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # mm/s²
+def compute_racket_orientation(target_z, restitution=0.85, g=9800):  # mm/s²
     global ball_pos, ball_vel, racket_vel
 
     pos = np.array(ball_pos)        # mm
@@ -602,7 +602,7 @@ try:
     workspace_width = 420
     workspace_height = 300
     workspace_tolerance = 5
-    vel_threshold = 50 # in mm/s
+    vel_threshold = 40 # in mm/s
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
@@ -610,7 +610,7 @@ try:
 
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 120
+    bounce_height = 140
 
     pos_data = open("file_pos_data.txt", 'w')
     vel_data = open("file_vel_data.txt", 'w')
