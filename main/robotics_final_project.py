@@ -453,30 +453,43 @@ def robot_calibration(home_pos : np.ndarray, w, h):
 
 
 ############### test ###############
-def compute_racket_orientation(target_z, restitution=0.85):
+def compute_racket_orientation(target_z, restitution=0.8):
+    global ball_pos, ball_vel, racket_vel  # ← 전역 참조
+
     pos = np.array(ball_pos)
     vel_in = np.array(ball_vel)
 
-    target = np.array([0.0, 0.0, target_z])
-    vel_out = (target - pos)
-    vel_out = vel_out / np.linalg.norm(vel_out) * np.linalg.norm(vel_in) * restitution
+    # 라켓 z방향 속도
+    v_racket_z = racket_vel[2]
 
+    # 목표 지점 벡터
+    target = np.array([0.0, 0.0, target_z])
+    desired_dir = target - pos
+    desired_dir = desired_dir / np.linalg.norm(desired_dir)
+
+    # 반사 속도 방향 + 크기
+    v_in_mag = np.linalg.norm(vel_in)
+    vel_out = desired_dir * v_in_mag * restitution
+
+    # z축 보정 (라켓이 공을 위로 받쳐칠 경우)
+    vz_rel_in = vel_in[2] - v_racket_z
+    vz_rel_out = -restitution * vz_rel_in
+    vel_out[2] = vz_rel_out + v_racket_z
+
+    # 반사 방향 → 표면 normal 추정
     n = vel_in - vel_out
     n = n / np.linalg.norm(n)
 
-    # 라켓 normal 벡터 → (roll = x축 회전), (pitch = y축 회전)
-    roll_rad  = np.arcsin(-n[0])  # x축 기준 기울기
-    pitch_rad = np.arcsin(n[1])   # y축 기준 기울기
+    # roll = x축 회전, pitch = y축 회전
+    roll  = np.arcsin(-n[0])  # x기준 → roll
+    pitch = np.arcsin(n[1])   # y기준 → pitch
 
-    return roll_rad, pitch_rad
-
-
+    return roll, pitch
 
 
 
 
-
-def compute_linear_roll_pitch(x, y, width, max_degree):
+def compute_linear_roll_pitch(x, y, width, max_degree): # deprecated. useless
     # 정규화: -1.0 ~ 1.0 범위
     half = width / 2
     x_norm = np.clip(x / half, -1.0, 1.0)
@@ -486,6 +499,8 @@ def compute_linear_roll_pitch(x, y, width, max_degree):
     pitch_rad = np.radians(-x_norm * max_degree)
 
     return roll_rad, pitch_rad
+
+
 
 def euler_xyz_to_matrix(euler_deg):
     x, y, z = np.radians(euler_deg)
@@ -553,7 +568,7 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
 indy.stop_teleop()
 
-home_pos = np.array([570, 10, 430, -85, 73.5, -90]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([595, 25, 420, -93.59, 76.57, -98.37]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -580,10 +595,10 @@ print("#### cam setup done! ####")
 time.sleep(5)
 
 try:
-    workspace_width = 350
-    workspace_height = 290
+    workspace_width = 420
+    workspace_height = 300
     workspace_tolerance = 5
-    vel_threshold = 200 # in mm/s
+    vel_threshold = 80 # in mm/s
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
@@ -591,7 +606,7 @@ try:
 
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 100
+    bounce_height = 150
 
     pos_data = open("file_pos_data.txt", 'w')
     vel_data = open("file_vel_data.txt", 'w')
@@ -612,7 +627,8 @@ try:
         if (keyboard.is_pressed('esc')):
             break
 
-        racket_pos = indy.get_control_state()['p']
+        robot_pos_raw = indy.get_control_state()['p']
+        racket_pos = np.array([robot_pos_raw[0] - home_pos[0], robot_pos_raw[1] - home_pos[1], robot_pos_raw[2] - home_pos[2]])
         racket_vel = indy.get_control_state()['pdot']
         robot_pos_data.write(str(racket_pos[0]) + "," + str(racket_pos[1]) + "," + str(racket_pos[2]) + "\n")
         robot_vel_data.write(str(racket_vel[0]) + "," + str(racket_vel[1]) + "," + str(racket_vel[2]) + "\n")
@@ -651,7 +667,7 @@ try:
         if (orientation_lock):
             pass
         elif (ball_vel[2] < -vel_threshold): # if the ball is dropping
-            test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height)
+            test_roll_rad, test_pitch_rad = compute_racket_orientation(racket_pos[2])
             if (np.abs(test_roll_rad) > 0.5): # ~= +-30 deg
                 test_roll_rad = 0
             if (np.abs(test_pitch_rad) > 0.5): # ~= +-30 deg
@@ -687,5 +703,5 @@ finally:
     robot_pos_data.close()
     robot_vel_data.close()
 
-    time.sleep(0.5)
+    time.sleep(2)
     indy.recover()
