@@ -2,6 +2,8 @@ import os
 import sys
 
 import numpy as np
+from math import sqrt
+
 import matplotlib.pyplot as plt
 import time
 
@@ -453,34 +455,53 @@ def robot_calibration(home_pos : np.ndarray, w, h):
 
 
 ############### test ###############
-def compute_racket_orientation(target_z, restitution=0.85, g=9800):  # mm/s²
+def get_racket_launch_delay_after_peak(ball_z_max_pos, impact_z, racket_up_time, g=9810):
+    """
+    공이 최고점에 도달한 이후, 몇 초 후에 라켓을 움직이기 시작해야 하는지를 반환합니다.
+    """
+    dz = ball_z_max_pos - impact_z
+    if dz < 0:
+        raise ValueError("impact_z는 ball_z_max_pos보다 낮아야 합니다.")
+
+    t_to_impact = sqrt(2 * dz / g)
+    return t_to_impact - racket_up_time
+
+def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # g in mm/s²
     global ball_pos, ball_vel, racket_vel
 
     pos = np.array(ball_pos)        # mm
     vel_in = np.array(ball_vel)     # mm/s
     v_racket_z = racket_vel[2]      # mm/s
 
-    # 목표 위치는 (0, 0, target_z)
-    dx, dy = -pos[0], -pos[1]       # x, y 방향 목표까지 거리
+    # 목표 위치 변경: (0, 10, target_z)
+    target = np.array([10.0, 20.0, target_z])
+    dx, dy = target[0] - pos[0], target[1] - pos[1]
+    delta_z = target_z - pos[2]
 
     # z축 상대속도 및 반사 후 속도
     vz_rel_in = vel_in[2] - v_racket_z
     vz_rel_out = -restitution * vz_rel_in
     vz_out = vz_rel_out + v_racket_z
 
-    # z축 운동으로부터 비행 시간 추정 (z=0 도달 시간)
-    if vz_out == 0:
+    # 포물선 도달 시간 계산 (z 방향 2차방정식 해)
+    a = -0.5 * g
+    b = vz_out
+    c = delta_z
+
+    discriminant = b**2 - 4 * a * c
+    if discriminant < 0:
         t_flight = 0.1  # fallback
     else:
-        t_flight = 2 * vz_out / g  # 왕복 기준 (대칭 궤도 가정)
+        t1 = (-b + np.sqrt(discriminant)) / (2 * a)
+        t2 = (-b - np.sqrt(discriminant)) / (2 * a)
+        t_flight = max(t1, t2) if max(t1, t2) > 0 else 0.1
 
-    # x, y 속도 역산
+    # x, y 방향 속도 계산
     vx_out = dx / t_flight
     vy_out = dy / t_flight
+    vel_out = np.array([vx_out, vy_out, vz_out])
 
-    vel_out = np.array([vx_out, vy_out, vz_out])  # 목표 반사 속도
-
-    # 반사 방향 → surface normal
+    # surface normal 계산
     n = vel_in - vel_out
     n = n / np.linalg.norm(n)
 
@@ -488,7 +509,7 @@ def compute_racket_orientation(target_z, restitution=0.85, g=9800):  # mm/s²
     roll  = np.arcsin(-n[0])  # x축 회전
     pitch = np.arcsin(n[1])   # y축 회전
 
-    return roll, pitch  # 라디안 단위
+    return roll, pitch
 
 
 
@@ -599,18 +620,21 @@ print("#### cam setup done! ####")
 time.sleep(5)
 
 try:
-    workspace_width = 420
+    workspace_width = 350
     workspace_height = 300
     workspace_tolerance = 5
-    vel_threshold = 40 # in mm/s
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
     time.sleep(2)
 
+    vel_threshold = 80 # in mm/s
+    height_threshold = 200
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 140
+    bounce_height = 160
+    test_roll_rad = 0
+    test_pitch_rad = 0
 
     pos_data = open("file_pos_data.txt", 'w')
     vel_data = open("file_vel_data.txt", 'w')
@@ -667,10 +691,10 @@ try:
                 break
         
         
-        if (ball_vel[2] > vel_threshold):
+        if (ball_vel[2] > vel_threshold) or (ball_pos[2] > workspace_height/2):
             target_z = -workspace_height/2
             orientation_lock = False
-        elif (ball_vel[2] < -vel_threshold):
+        elif (ball_pos[2] < -workspace_height/2 + bounce_height + height_threshold): #ball_vel[2] < -vel_threshold
             target_z = -workspace_height/2 + bounce_height
             orientation_lock = True
 
@@ -679,7 +703,7 @@ try:
         if (orientation_lock):
             pass
         elif (ball_vel[2] < -vel_threshold): # if the ball is dropping
-            test_roll_rad, test_pitch_rad = compute_racket_orientation(0) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
+            test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (np.abs(test_roll_rad) > 0.5): # ~= +-30 deg
                 test_roll_rad = 0
             if (np.abs(test_pitch_rad) > 0.5): # ~= +-30 deg
