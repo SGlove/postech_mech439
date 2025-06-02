@@ -24,8 +24,8 @@ import keyboard
 
 
 transform_matrix = np.eye(4)
-ball_pos = np.array([0, 0, 0])
-ball_vel = np.array([0, 0, 0])
+ball_pos = np.array([0, 0, 0]) # in mm
+ball_vel = np.array([0, 0, 0]) # in mm/s
 is_cam_setup = False
 stop_camera = False
 
@@ -580,7 +580,7 @@ try:
     workspace_width = 350
     workspace_height = 290
     workspace_tolerance = 5
-    vel_threshold = 0.8
+    vel_threshold = 5000 # terminal velocity of pingpong ball is approx. 9300mm/s
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
@@ -589,9 +589,9 @@ try:
     target_z = -workspace_height/2
     bounce_height = 100
 
-    vel_data = open("file_velocity_data.txt", 'w')
+    pos_data = open("file_pos_data.txt", 'w')
+    vel_data = open("file_vel_data.txt", 'w')
     time_data = open("file_time_data.txt", 'w')
-    z_pos_data = open("file_z_pos_data.txt", 'w')
 
     start_time = time.time()
     count = 0
@@ -607,11 +607,11 @@ try:
             break
         
         now_time = time.time()
+        pos_data.write(str(ball_pos[0]) + "," + str(ball_pos[1]) + "," + str(ball_pos[2]) + "\n")
         vel_data.write(str(ball_vel[0]) + "," + str(ball_vel[1]) + "," + str(ball_vel[2]) + "\n")
         time_data.write(str(now_time) + "\n")
 
         #ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2])) # integrated into cv code
-        z_pos_data.write(str(ball_pos[2]) + "\n")
 
         count = count + 1
         if (now_time - start_time > 1):
@@ -657,6 +657,6 @@ except Exception as e:
 finally:
     indy.stop_teleop()
     stop_camera = True
+    pos_data.close()
     vel_data.close()
     time_data.close()
-    z_pos_data.close()
