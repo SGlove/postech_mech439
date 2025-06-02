@@ -359,8 +359,8 @@ def print_coordinate():
 
 def robot_calibration(home_pos : np.ndarray, w, h):
     print("#### starting calibration... ####")
-    time_per_step = 2.5
-    vel_ratio = 0.5
+    time_per_step = 3
+    vel_ratio = 0.3
     acc_ratio = 1.0
 
     fig = plt.figure()
@@ -453,38 +453,42 @@ def robot_calibration(home_pos : np.ndarray, w, h):
 
 
 ############### test ###############
-def compute_racket_orientation(target_z, restitution=0.8):
-    global ball_pos, ball_vel, racket_vel  # ← 전역 참조
+def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # mm/s²
+    global ball_pos, ball_vel, racket_vel
 
-    pos = np.array(ball_pos)
-    vel_in = np.array(ball_vel)
+    pos = np.array(ball_pos)        # mm
+    vel_in = np.array(ball_vel)     # mm/s
+    v_racket_z = racket_vel[2]      # mm/s
 
-    # 라켓 z방향 속도
-    v_racket_z = racket_vel[2]
+    # 목표 위치는 (0, 0, target_z)
+    dx, dy = -pos[0], -pos[1]       # x, y 방향 목표까지 거리
 
-    # 목표 지점 벡터
-    target = np.array([0.0, 0.0, target_z])
-    desired_dir = target - pos
-    desired_dir = desired_dir / np.linalg.norm(desired_dir)
-
-    # 반사 속도 방향 + 크기
-    v_in_mag = np.linalg.norm(vel_in)
-    vel_out = desired_dir * v_in_mag * restitution
-
-    # z축 보정 (라켓이 공을 위로 받쳐칠 경우)
+    # z축 상대속도 및 반사 후 속도
     vz_rel_in = vel_in[2] - v_racket_z
     vz_rel_out = -restitution * vz_rel_in
-    vel_out[2] = vz_rel_out + v_racket_z
+    vz_out = vz_rel_out + v_racket_z
 
-    # 반사 방향 → 표면 normal 추정
+    # z축 운동으로부터 비행 시간 추정 (z=0 도달 시간)
+    if vz_out == 0:
+        t_flight = 0.1  # fallback
+    else:
+        t_flight = 2 * vz_out / g  # 왕복 기준 (대칭 궤도 가정)
+
+    # x, y 속도 역산
+    vx_out = dx / t_flight
+    vy_out = dy / t_flight
+
+    vel_out = np.array([vx_out, vy_out, vz_out])  # 목표 반사 속도
+
+    # 반사 방향 → surface normal
     n = vel_in - vel_out
     n = n / np.linalg.norm(n)
 
     # roll = x축 회전, pitch = y축 회전
-    roll  = np.arcsin(-n[0])  # x기준 → roll
-    pitch = np.arcsin(n[1])   # y기준 → pitch
+    roll  = np.arcsin(-n[0])  # x축 회전
+    pitch = np.arcsin(n[1])   # y축 회전
 
-    return roll, pitch
+    return roll, pitch  # 라디안 단위
 
 
 
@@ -598,7 +602,7 @@ try:
     workspace_width = 420
     workspace_height = 300
     workspace_tolerance = 5
-    vel_threshold = 80 # in mm/s
+    vel_threshold = 50 # in mm/s
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.5, 1.0)
@@ -606,7 +610,7 @@ try:
 
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 150
+    bounce_height = 155
 
     pos_data = open("file_pos_data.txt", 'w')
     vel_data = open("file_vel_data.txt", 'w')
@@ -662,12 +666,20 @@ try:
             else:
                 break
         
+        
+        if (ball_vel[2] > vel_threshold):
+            target_z = -workspace_height/2
+            orientation_lock = False
+        elif (ball_vel[2] < -vel_threshold):
+            target_z = -workspace_height/2 + bounce_height
+            orientation_lock = True
+
 
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
         if (orientation_lock):
             pass
         elif (ball_vel[2] < -vel_threshold): # if the ball is dropping
-            test_roll_rad, test_pitch_rad = compute_racket_orientation(racket_pos[2])
+            test_roll_rad, test_pitch_rad = compute_racket_orientation(0) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (np.abs(test_roll_rad) > 0.5): # ~= +-30 deg
                 test_roll_rad = 0
             if (np.abs(test_pitch_rad) > 0.5): # ~= +-30 deg
@@ -677,12 +689,6 @@ try:
             test_roll_rad = 0
             test_pitch_rad = 0
 
-        if (ball_vel[2] > vel_threshold):
-            target_z = -workspace_height/2
-            orientation_lock = False
-        elif (ball_vel[2] < -vel_threshold):
-            target_z = -workspace_height/2 + bounce_height
-            orientation_lock = True
 
         #print("Ref. value : " + str(np.degrees(roll_rad)) + "," + str(np.degrees(pitch_rad)) + " Test value : " + str(test_roll_deg) + "," + str(test_pitch_deg))
         lacket_angles = apply_roll_pitch(home_pos[3:6], test_roll_rad, test_pitch_rad)
