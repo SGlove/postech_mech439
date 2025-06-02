@@ -467,7 +467,8 @@ def get_racket_launch_delay_after_peak(ball_z_max_pos, impact_z, racket_up_time,
     t_to_impact = sqrt(2 * dz / g)
     return t_to_impact - racket_up_time
 
-def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # g in mm/s²
+
+def compute_racket_orientation(target_z, restitution=0.87, g=9810):  # g in mm/s²
     global ball_pos, ball_vel, racket_vel
 
     pos = np.array(ball_pos)        # mm
@@ -697,7 +698,7 @@ try:
         
         if (is_ball_falling):
             orientation_lock = False
-            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.4)
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.45)
             if (now_time >= when_to_up):
                 orientation_lock = True
                 target_z = -workspace_height/2 + bounce_height + 10
