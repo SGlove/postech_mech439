@@ -24,10 +24,54 @@ import keyboard
 
 
 transform_matrix = np.eye(4)
-ball_pos = [0, 0, 0]
-ball_vel = [0, 0, 0]
+ball_pos = np.array([0, 0, 0])
+ball_vel = np.array([0, 0, 0])
 is_cam_setup = False
 stop_camera = False
+
+
+
+def calculate_affine_transform(robot_points, camera_points):
+    global transform_matrix
+    """
+    로봇 좌표계 -> 카메라 좌표계로 변환하는 3D 아핀 변환 행렬 계산
+    :param robot_points: 로봇 좌표계 점들 [(x1, y1, z1), (x2, y2, z2), ...] (8개 점)
+    :param camera_points: 카메라 좌표계 대응점들 [(x1, y1, z1), (x2, y2, z2), ...] (8개 점)
+    :return: 4x4 아핀 변환 행렬
+    """
+    # 동차 좌표계로 변환 (로봇 좌표계)
+    A = []
+    for x, y, z in camera_points:
+        A.append([x, y, z, 1])
+    A = np.array(A)  # 8x4 행렬
+    
+    # 카메라 좌표계 (타겟)
+    B = np.array(robot_points)  # 8x3 행렬
+    
+    # 최소 제곱법으로 변환 행렬 계산 (A * M = B)
+    M, residuals, rank, s = np.linalg.lstsq(A, B, rcond=None)
+    
+    # 4x4 변환 행렬 구성
+    T = np.eye(4)
+    T[:3, :] = M.T  # 상위 3x4 부분 적용
+
+    np.savetxt('file_transform_matrix.txt', T, fmt='%.6f')
+
+    transform_matrix = T
+    
+
+def transform_point(point):
+    """
+    변환 행렬을 사용해 점 변환
+    :param T: 4x4 변환 행렬
+    :param point: 변환할 점 (x, y, z)
+    :return: 카메라 좌표계의 점 (x, y, z)
+    """
+    homogeneous_point = np.array([point[0], point[1], point[2], 1])
+    transformed = transform_matrix @ homogeneous_point
+    return transformed[:3]  # 동차 좌표 -> 3D 좌표
+
+
 
 
 
@@ -137,9 +181,10 @@ def runCamera():
     beta = 0.80
     ball_diameter = 0.05 # 4cm ball
     state_filtered_que = [None] * 30
+    prev_pos = None
+    last_time = time.time()
 
     num_memory = 1 # need to implement?
-    kalman_filter = KalmanFilter(num_memory)
 
     is_cam_setup = True
     #print(cam1._fx, cam1._fy)
@@ -264,84 +309,36 @@ def runCamera():
         state_filtered[5] = state_filtered[0] / cam1._fx
         state_filtered[6] = - state_filtered[1] / cam1._fx
 
-        #임시시
-        # state_filtered=state_filtered1
-        # print(state_filtered1)
-        # print("1")
-        # print(state_filtered)
-        # print(state_filtered2)
-        # z_estimated = cam1._fx * ball_diameter / (state_filtered[2] * 2)
-
-        ball_pos[0] = state_filtered[0]
-        ball_pos[1] = state_filtered[2]
-        ball_pos[2] = state_filtered[1]
+        
+        # Update Ball Position
+        ball_pos = transform_point([state_filtered[0], state_filtered[2], state_filtered[1]])
 
         state_filtered_que.append(state_filtered)
         if len(state_filtered_que) > 30:
             state_filtered_que.pop(0)
 
         try:
-            prev_state = state_filtered_que[-2]
-            curr_state = state_filtered_que[-1]
-            vel = (curr_state - prev_state) / kalman_filter.dt
-            vx = vel[4]
-            vy = vel[5]
-            vz = vel[6]
+            curr_time = time.time()
+            if (prev_pos is not None):
+                ball_vel = (ball_pos - prev_pos) / (curr_time - last_time)
+            prev_pos = ball_pos
+            last_time = curr_time
         except:
-            vx=0;vy=0;vz=0
-
-        '''
-        ball_vel[0] = vx
-        ball_vel[1] = vy
-        ball_vel[2] = vz
-        '''
-
-        ball_vel = transform_point([vx, vy, vz])
-
-        # x_obs_list = [x[3] for x in state_filtered_que if x is not None]
-        # y_obs_list = [x[3] for x in state_filtered_que if x is not None]
-        # for x_obs, y_obs in zip(x_obs_list, y_obs_list):
-        #     _, _ = kalman_filter.predict(x_obs, y_obs)
-
-        # x_pred_list, y_pred_list, cov_pred_list = kalman_filter.predict(state_filtered[3], state_filtered[4], state_filtered[5], 30)
-        x_pred_list, y_pred_list, z_pred_list, cov_pred_list = kalman_filter.predict(state_filtered[0], state_filtered[1], state_filtered[2], vx, vy, vz, 1)
-
-        u_pred_list = y_pred_list
-        v_pred_list = z_pred_list
-        w_pred_list = x_pred_list
+            ball_vel = np.array([0, 0, 0])
 
 
-        # Done
-        # cv2.circle(img_rgb1, (int(state_filtered[0]), int(state_filtered[1])), int(state_filtered[2]), (0, 255, 255), 2)
-        # cv2.circle(img_rgb1, (int(state_filtered[3]), int(state_filtered[4])), 4, (0, 0, 255), -1)
-        # for x_pred, y_pred, cov_pred in zip(x_pred_list, y_pred_list, cov_pred_list):
-        #     # cv2.circle(img_rgb1, (int(x_pred), int(y_pred)), 5, (255, 0, 0), -1)
-        #     cv2.circle(img_rgb1, (int(cam1._fx * x_pred), int(cam1._fx * y_pred)), int(np.sqrt(cov_pred[0, 0])), (255, 0, 0), 2)
+
         # UI
-        #노란색 코드드        
+        #노란색 원 코드        
         cv2.circle(img_rgb1, (int(state_filtered[0]), int(state_filtered[1])), int(state_filtered[3]), (0, 255, 255), 2)
-        #파란색 코드
-        for u_pred, v_pred, w_pred, cov_pred in zip(u_pred_list, v_pred_list, w_pred_list, cov_pred_list):
-            # cv2.circle(img_rgb1, (int(x_pred), int(y_pred)), 5, (255, 0, 0), -1)
-            cv2.circle(img_rgb1, (int(cam1._fx*u_pred), int(-cam1._fx*v_pred)), int(np.sqrt(cov_pred[0, 0])), (255, 0, 0), 2)
 
-        #빨간색 코드
+        #빨간색 점 코드
         for j in range(1, len(state_filtered_que)):
             if state_filtered_que[j - 1] is None or state_filtered_que[j] is None:
                 continue
             pt1 = [int(x) for x in state_filtered_que[j - 1][0:2]]
             pt2 = [int(x) for x in state_filtered_que[j][0:2]]
             cv2.line(img_rgb1, pt1, pt2, (0, 0, 255), int(2 + 5 / float(len(state_filtered_que) - j)))
-
-        # cv2.putText(img_rgb1, '{0:.3f}'.format(z_filtered), (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 2,
-        #             (255, 255, 255), 10, cv2.LINE_AA)
-        # cv2.putText(img_rgb1, '{0:.3f}'.format(z_filtered), (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 2,
-        #             (0, 0, 0), 5, cv2.LINE_AA)
-
-        cv2.putText(img_rgb1, '{0:.3f}'.format(-state_filtered[4]), (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                    (255, 255, 255), 10, cv2.LINE_AA)
-        cv2.putText(img_rgb1, '{0:.3f}'.format(-state_filtered[4]), (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                    (0, 0, 0), 5, cv2.LINE_AA)
 
         tf = time.time_ns()
 
@@ -351,9 +348,11 @@ def runCamera():
             cv2.putText(img_rgb1, '{0:02.1f} FPS'.format(1/((tf-ts)/1e9)), (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 2,
                         (0, 0, 0), 5, cv2.LINE_AA)
 
-        output1 = np.vstack((img_rgb1, img_depth1))
+        output1 = np.vstack((img_rgb1))
+        #output1 = np.vstack((img_rgb1, img_depth1))
         output1 = cv2.resize(output1, dsize=(640, 720), interpolation=cv2.INTER_AREA)
-        output2 = np.vstack((img_rgb2, img_depth2))
+        output2 = np.vstack((img_rgb2))
+        #output2 = np.vstack((img_rgb2, img_depth2))
         output2 = cv2.resize(output2, dsize=(640, 720), interpolation=cv2.INTER_AREA)
         combined_output=np.hstack((output1,output2))
         cv2.imshow('RealSense', combined_output)
@@ -371,45 +370,6 @@ def runCamera():
 
 
 
-def calculate_affine_transform(robot_points, camera_points):
-    global transform_matrix
-    """
-    로봇 좌표계 -> 카메라 좌표계로 변환하는 3D 아핀 변환 행렬 계산
-    :param robot_points: 로봇 좌표계 점들 [(x1, y1, z1), (x2, y2, z2), ...] (8개 점)
-    :param camera_points: 카메라 좌표계 대응점들 [(x1, y1, z1), (x2, y2, z2), ...] (8개 점)
-    :return: 4x4 아핀 변환 행렬
-    """
-    # 동차 좌표계로 변환 (로봇 좌표계)
-    A = []
-    for x, y, z in camera_points:
-        A.append([x, y, z, 1])
-    A = np.array(A)  # 8x4 행렬
-    
-    # 카메라 좌표계 (타겟)
-    B = np.array(robot_points)  # 8x3 행렬
-    
-    # 최소 제곱법으로 변환 행렬 계산 (A * M = B)
-    M, residuals, rank, s = np.linalg.lstsq(A, B, rcond=None)
-    
-    # 4x4 변환 행렬 구성
-    T = np.eye(4)
-    T[:3, :] = M.T  # 상위 3x4 부분 적용
-
-    np.savetxt('file_transform_matrix.txt', T, fmt='%.6f')
-
-    transform_matrix = T
-    
-
-def transform_point(point):
-    """
-    변환 행렬을 사용해 점 변환
-    :param T: 4x4 변환 행렬
-    :param point: 변환할 점 (x, y, z)
-    :return: 카메라 좌표계의 점 (x, y, z)
-    """
-    homogeneous_point = np.array([point[0], point[1], point[2], 1])
-    transformed = transform_matrix @ homogeneous_point
-    return transformed[:3]  # 동차 좌표 -> 3D 좌표
 
 
 
@@ -650,8 +610,8 @@ try:
         vel_data.write(str(ball_vel[0]) + "," + str(ball_vel[1]) + "," + str(ball_vel[2]) + "\n")
         time_data.write(str(now_time) + "\n")
 
-        ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2]))
-        z_pos_data.write(str(ball_pos_ws[2]) + "\n")
+        #ball_pos_ws = transform_point((ball_pos[0], ball_pos[1], ball_pos[2])) # integrated into cv code
+        z_pos_data.write(str(ball_pos[2]) + "\n")
 
         count = count + 1
         if (now_time - start_time > 1):
@@ -660,8 +620,8 @@ try:
             start_time = now_time
 
 
-        if ((np.abs(ball_pos_ws[0]) > (workspace_width/2 + workspace_tolerance))
-            or (np.abs(ball_pos_ws[1]) > (workspace_width/2 + workspace_tolerance))):
+        if ((np.abs(ball_pos[0]) > (workspace_width/2 + workspace_tolerance))
+            or (np.abs(ball_pos[1]) > (workspace_width/2 + workspace_tolerance))):
             print("#### ball is out of workspace. esc to stop, s to start again ####")
             selection = 'esc'
             while (True):
@@ -685,9 +645,9 @@ try:
             target_z = -workspace_height/2 + bounce_height
 
         #indy.movetelel_abs(home_pos + np.array([0, 0, target_z, 0, 0, 0]), 1.0, 1.0)
-        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos_ws[0], ball_pos_ws[1], workspace_width, 10)
+        roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
         lacket_angles = apply_roll_pitch(home_pos[3:6], roll_rad, pitch_rad)
-        indy.movetelel_abs(np.array([home_pos[0] + ball_pos_ws[0], home_pos[1] + ball_pos_ws[1], home_pos[2] + target_z,
+        indy.movetelel_abs(np.array([home_pos[0] + ball_pos[0], home_pos[1] + ball_pos[1], home_pos[2] + target_z,
                                     lacket_angles[0], lacket_angles[1], lacket_angles[2]]))
         #indy.movetelel_abs(home_pos + np.array([ball_pos_ws[0], ball_pos_ws[1], -workspace_height/2, 0, 0, 0]))
     
