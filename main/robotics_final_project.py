@@ -461,7 +461,8 @@ def get_racket_launch_delay_after_peak(ball_z_max_pos, impact_z, racket_up_time,
     """
     dz = ball_z_max_pos - impact_z
     if dz < 0:
-        raise ValueError("impact_z는 ball_z_max_pos보다 낮아야 합니다.")
+        print("impact_z는 ball_z_max_pos보다 낮아야 합니다.")
+        return 0
 
     t_to_impact = sqrt(2 * dz / g)
     return t_to_impact - racket_up_time
@@ -631,7 +632,7 @@ try:
     vel_threshold = 150 # in mm/s
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 110
+    bounce_height = 80
     test_roll_rad = 0
     test_pitch_rad = 0
 
@@ -696,7 +697,7 @@ try:
         
         if (is_ball_falling):
             orientation_lock = False
-            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.28)
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.4)
             if (now_time >= when_to_up):
                 orientation_lock = True
                 target_z = -workspace_height/2 + bounce_height + 10
