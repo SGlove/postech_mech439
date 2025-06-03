@@ -675,7 +675,7 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
 indy.stop_teleop()
 
-home_pos = np.array([595, 25, 420, -91.45, 76.63, -96.29]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([595, 25, 420, -89.231, 76.476, -94.132]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -806,8 +806,8 @@ try:
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
         if (not orientation_lock):
             #test_roll_rad, test_pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-            test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 700, -workspace_height/2 + bounce_height)
-            #test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
+            #test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 1500, -workspace_height/2 + bounce_height)
+            test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
             '''
             test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (test_roll_rad > 0.5): # ~= +-30 deg
