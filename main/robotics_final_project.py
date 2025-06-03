@@ -89,46 +89,6 @@ SERIAL2 = "138322250508"
 def nothing(x):
     pass
 
-class KalmanFilter:
-    def __init__(self, num_memory = 1): # num_memory: 몇 개의 객체를 추적할 지
-
-        self.M = num_memory
-        self.dt = np.float32(1/100) # dt: 시간 간격
-
-        self.kf = cv2.KalmanFilter(6*self.M, 6*self.M, 1) # kalmanfilter(size of state vector(x,y,z,vx,vy,vz) = 6, size of measurement vector = 6, size of contorl vector = 1)
-        # self.kf.measurementMatrix = np.zeros([3 * self.M, 6 * self.M], dtype=np.float32)
-        self.kf.measurementMatrix = np.eye(6 * self.M, dtype=np.float32)  # eye: diagonal matrix
-        self.kf.transitionMatrix  = np.zeros([6 * self.M, 6 * self.M], dtype=np.float32)
-        self.kf.controlMatrix     = np.zeros([6 * self.M, 1], dtype=np.float32)
-
-        for m in range(self.M):
-            # self.kf.measurementMatrix[3*m:3*(m+1), 6*m:6*(m+1)] = np.array([
-            #     [1, 0, 0, 0, 0, 0],
-            #     [0, 1, 0, 0, 0, 0],
-            #     [0, 0, 1, 0, 0, 0]], np.float32)
-            
-            self.kf.controlMatrix[6*m:6*(m+1), :] = np.array([
-                [0],
-                [0],
-                [0],
-                [0],
-                [0],
-                [-9.81 * self.dt]], np.float32)
-
-            self.kf.transitionMatrix[6*m:6*(m+1), 6*m:6*(m+1)] = np.array([
-                [1, 0, 0, self.dt, 0, 0],
-                [0, 1, 0, 0, self.dt, 0],
-                [0, 0, 1, 0, 0, self.dt],
-                [0, 0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 1, 0],
-                [0, 0, 0, 0, 0, 1]], np.float32)
-
-        self.kf.errorCovPre = np.identity(6*self.M, np.float32) * 1 # 예측 상태의 오차 공분산 초기값 (초기 신뢰도)
-        self.kf.measurementNoiseCov = np.identity(6*self.M, dtype=np.float32) * 3 # 측정 노이즈의 공분산 (3배 크기)
-
-        self.input = np.array([[np.float32(1)]]) # 제어 입력 벡터
-
-
 def runCamera():
     global ball_pos
     global ball_vel
