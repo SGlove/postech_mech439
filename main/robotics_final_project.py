@@ -806,8 +806,8 @@ try:
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
         if (not orientation_lock):
             #test_roll_rad, test_pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-            #test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 700, -workspace_height/2 + bounce_height)
-            test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
+            test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 700, -workspace_height/2 + bounce_height)
+            #test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
             '''
             test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (test_roll_rad > 0.5): # ~= +-30 deg
