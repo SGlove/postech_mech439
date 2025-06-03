@@ -477,44 +477,27 @@ def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # g in mm/s�
 
 
 def compute_parabolic_roll_pitch(x, y, width, max_degree, para_z, base_z):
-    """
-    포물면 z = a(x^2 + y^2) + base_z 를 기준으로, 해당 위치에서의 접선 벡터로부터
-    roll(x축 회전), pitch(y축 회전) 각도를 계산합니다.
-
-    - x, y: 현재 공 위치 (mm 단위)
-    - width: 라켓 가로 폭 (전체 기준) → 정규화용
-    - max_degree: 허용 가능한 최대 회전 각도 (도 단위)
-    - para_z: 포물면 초점 높이 (z축 기준, mm)
-    - base_z: 포물면 기준 높이 (z = 0인 중심 라켓 높이, mm)
-    """
-    # 정규화된 x, y 좌표 (-1 ~ 1 범위)
     half = width / 2
     x_norm = np.clip(x / half, -1.0, 1.0)
     y_norm = np.clip(y / half, -1.0, 1.0)
 
-    # 포물면 상수 a 계산: para_z = base_z + 1 / (4a) → a = 1 / (4 * (para_z - base_z))
     delta_z = para_z - base_z
     if delta_z <= 0:
         raise ValueError("para_z must be greater than base_z.")
     a = - 1 / (4 * delta_z)
 
-    # 실측 위치로 복원
     x_real = x_norm * half
     y_real = y_norm * half
 
-    # gradient 계산 (기울기 벡터)
     dzdx = 2 * a * x_real
     dzdy = 2 * a * y_real
 
-    # normal vector: [-dzdx, -dzdy, 1]
     n = np.array([-dzdx, -dzdy, 1.0])
     n /= np.linalg.norm(n)
 
-    # roll: x축 회전 (→ y성분 기준), pitch: y축 회전 (→ x성분 기준)
-    roll_rad = np.arcsin(n[1])      # y 방향 → x축 회전 → roll
-    pitch_rad = np.arcsin(-n[0])    # x 방향 → y축 회전 → pitch
+    roll_rad = np.arcsin(n[1])
+    pitch_rad = np.arcsin(-n[0])
 
-    # 최대 각도 제한
     max_rad = radians(max_degree)
     roll_rad = np.clip(roll_rad, -max_rad, max_rad)
     pitch_rad = np.clip(pitch_rad, -max_rad, max_rad)
@@ -523,24 +506,8 @@ def compute_parabolic_roll_pitch(x, y, width, max_degree, para_z, base_z):
 
 
 
-import numpy as np
 
 def compute_gaussian_roll_pitch(x, y, amplitude=100, sigma=800):
-    """
-    공의 x, y 위치에서 (0, 0, bottom)을 최저점으로 갖는
-    가우시안 곡면의 노멀 벡터를 기반으로 라켓의 roll, pitch 각도를 계산합니다.
-
-    Parameters:
-    - x (float): 공의 x 좌표 (mm)
-    - y (float): 공의 y 좌표 (mm)
-    - amplitude (float): 곡면의 깊이 (양수값, mm)
-    - sigma (float): 곡면의 퍼짐 정도 (완만도 제어)
-    - bottom (float): 곡면 최저점의 z값
-
-    Returns:
-    - roll (float): 라디안 단위의 x축 회전 (roll)
-    - pitch (float): 라디안 단위의 y축 회전 (pitch)
-    """
     A = amplitude
     r2 = x**2 + y**2
     exp_part = np.exp(-r2 / (2 * sigma**2))
@@ -548,8 +515,8 @@ def compute_gaussian_roll_pitch(x, y, amplitude=100, sigma=800):
     dz_dx = (A * x / sigma**2) * exp_part
     dz_dy = (A * y / sigma**2) * exp_part
 
-    roll_rad = np.arctan(dz_dy)     # x축 회전 = z변화량 / y방향 → 앞뒤 기울기
-    pitch_rad = -np.arctan(dz_dx)   # y축 회전 = z변화량 / x방향 → 좌우 기울기
+    roll_rad = np.arctan(dz_dy)
+    pitch_rad = -np.arctan(dz_dx)
 
     return roll_rad, pitch_rad
 
