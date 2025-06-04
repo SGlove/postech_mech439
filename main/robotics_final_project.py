@@ -506,6 +506,49 @@ def compute_parabolic_roll_pitch(x, y, width, max_degree, para_z, base_z):
 
 
 
+def compute_shifted_parabolic_roll_pitch(x, y, max_degree,
+                                          para_z, base_z, a=10, b=10):
+    """
+    포물면 z = A[(x - a)^2 + (y - b)^2] + base_z 를 기준으로
+    라켓의 roll(x축 회전), pitch(y축 회전) 각도를 계산합니다.
+
+    - x, y: 현재 공 위치 (mm 단위)
+    - width: 라켓 가로 폭 (정규화 범위용)
+    - max_degree: roll/pitch 최대 각도 (deg)
+    - para_z: 포물면 초점 높이
+    - base_z: (a, b)에서의 포물면 기준 높이
+    - a, b: 포물면 중심 (x, y)
+    """
+    # 초점과 기준 높이 차이로 곡률 계수 A 결정
+    delta_z = para_z - base_z
+    if delta_z <= 0:
+        raise ValueError("para_z must be greater than base_z.")
+    A = -1 / (4 * delta_z)
+
+    # 위치 보정 (중심 이동)
+    x_shifted = x - a
+    y_shifted = y - b
+
+    # 포물면의 접선 기울기 계산
+    dzdx = 2 * A * x_shifted
+    dzdy = 2 * A * y_shifted
+
+    # 법선 벡터
+    n = np.array([-dzdx, -dzdy, 1.0])
+    n /= np.linalg.norm(n)
+
+    # 라디안 각도 계산 (pitch: y축 회전, roll: x축 회전)
+    roll_rad = np.arcsin(n[1])
+    pitch_rad = np.arcsin(-n[0])
+
+    # 최대 각도 제한
+    max_rad = radians(max_degree)
+    roll_rad = np.clip(roll_rad, -max_rad, max_rad)
+    pitch_rad = np.clip(pitch_rad, -max_rad, max_rad)
+
+    return roll_rad, pitch_rad
+
+
 
 def compute_gaussian_roll_pitch(x, y, amplitude=100, sigma=800):
     A = amplitude
@@ -631,7 +674,7 @@ time.sleep(5)
 try:
     workspace_width = 350
     workspace_height = 300
-    workspace_tolerance = 10
+    workspace_tolerance = 15
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
     indy.movetelel_abs(home_pos, 0.4, 1.0)
@@ -640,7 +683,7 @@ try:
     vel_threshold = 100 # in mm/s
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 85
+    bounce_height = 87
     test_roll_rad = 0
     test_pitch_rad = 0
 
@@ -707,10 +750,10 @@ try:
         
         if (is_ball_falling):
             orientation_lock = False
-            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.32)
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.30)
             if (now_time >= when_to_up):
                 orientation_lock = False
-                target_z = -workspace_height/2 + bounce_height + 10
+                target_z = -workspace_height/2 + bounce_height + 7
             if (ball_vel[2] > vel_threshold):
                 target_z = -workspace_height/2
                 is_ball_falling = False
@@ -733,8 +776,9 @@ try:
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
         if (not orientation_lock):
             #test_roll_rad, test_pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-            test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 1000, -workspace_height/2 + bounce_height)
+            #test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 1000, -workspace_height/2 + bounce_height)
             #test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
+            test_roll_rad, test_pitch_rad = compute_shifted_parabolic_roll_pitch(ball_pos[0], ball_pos[1], 20, 1300, -workspace_height/2 + bounce_height)
             '''
             test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (test_roll_rad > 0.5): # ~= +-30 deg
