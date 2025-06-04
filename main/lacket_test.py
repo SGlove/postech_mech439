@@ -87,11 +87,11 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
     return matrix_to_euler_xyz(R_final)
 
-home_ori = [-93.41, 76.27, -98.19]
+home_ori = [-89.231, 76.476, -94.132]
 ball_pos = np.array([np.float64(10.13), np.float64(1.13), np.float64(30.13)])
 ball_vel = np.array([np.float64(0.5), np.float64(0.5), np.float64(-3.2)])
 
 roll, pitch = compute_paddle_orientation(ball_pos, ball_vel)
 print("roll: ", np.degrees(roll), ", ptich: ", np.degrees(pitch))
-new_angles = apply_roll_pitch(home_ori, np.radians(0.3), 0)
+new_angles = apply_roll_pitch(home_ori, np.radians(-0.3), np.radians(-0.5))
 print("New XYZ Euler angles (deg):", new_angles)

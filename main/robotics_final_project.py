@@ -2,7 +2,8 @@ import os
 import sys
 
 import numpy as np
-from math import sqrt
+from math import sqrt, atan2, degrees, radians
+
 
 import matplotlib.pyplot as plt
 import time
@@ -88,46 +89,6 @@ SERIAL2 = "138322250508"
 def nothing(x):
     pass
 
-class KalmanFilter:
-    def __init__(self, num_memory = 1): # num_memory: 몇 개의 객체를 추적할 지
-
-        self.M = num_memory
-        self.dt = np.float32(1/100) # dt: 시간 간격
-
-        self.kf = cv2.KalmanFilter(6*self.M, 6*self.M, 1) # kalmanfilter(size of state vector(x,y,z,vx,vy,vz) = 6, size of measurement vector = 6, size of contorl vector = 1)
-        # self.kf.measurementMatrix = np.zeros([3 * self.M, 6 * self.M], dtype=np.float32)
-        self.kf.measurementMatrix = np.eye(6 * self.M, dtype=np.float32)  # eye: diagonal matrix
-        self.kf.transitionMatrix  = np.zeros([6 * self.M, 6 * self.M], dtype=np.float32)
-        self.kf.controlMatrix     = np.zeros([6 * self.M, 1], dtype=np.float32)
-
-        for m in range(self.M):
-            # self.kf.measurementMatrix[3*m:3*(m+1), 6*m:6*(m+1)] = np.array([
-            #     [1, 0, 0, 0, 0, 0],
-            #     [0, 1, 0, 0, 0, 0],
-            #     [0, 0, 1, 0, 0, 0]], np.float32)
-            
-            self.kf.controlMatrix[6*m:6*(m+1), :] = np.array([
-                [0],
-                [0],
-                [0],
-                [0],
-                [0],
-                [-9.81 * self.dt]], np.float32)
-
-            self.kf.transitionMatrix[6*m:6*(m+1), 6*m:6*(m+1)] = np.array([
-                [1, 0, 0, self.dt, 0, 0],
-                [0, 1, 0, 0, self.dt, 0],
-                [0, 0, 1, 0, 0, self.dt],
-                [0, 0, 0, 1, 0, 0],
-                [0, 0, 0, 0, 1, 0],
-                [0, 0, 0, 0, 0, 1]], np.float32)
-
-        self.kf.errorCovPre = np.identity(6*self.M, np.float32) * 1 # 예측 상태의 오차 공분산 초기값 (초기 신뢰도)
-        self.kf.measurementNoiseCov = np.identity(6*self.M, dtype=np.float32) * 3 # 측정 노이즈의 공분산 (3배 크기)
-
-        self.input = np.array([[np.float32(1)]]) # 제어 입력 벡터
-
-
 def runCamera():
     global ball_pos
     global ball_vel
@@ -139,7 +100,7 @@ def runCamera():
     cam2 = RealSense(serial=SERIAL2)
     cam2.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
-    ballLower = (6, 126, 176)
+    ballLower = (5, 94, 190)
     ballUpper = (78, 255, 255)
 
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
@@ -301,7 +262,7 @@ def runCamera():
                 last_time = curr_time
                 prev_pos = ball_pos
             else :
-                if ((curr_time - last_time) > 0.05):
+                if ((curr_time - last_time) > 0.035):
                     ball_vel = (ball_pos - prev_pos) / (curr_time - last_time)
                     last_time = curr_time
                     prev_pos = ball_pos
@@ -455,6 +416,19 @@ def robot_calibration(home_pos : np.ndarray, w, h):
 
 
 ############### test ###############
+def get_racket_launch_delay_after_peak(ball_z_max_pos, impact_z, racket_up_time, g=9810):
+    """
+    공이 최고점에 도달한 이후, 몇 초 후에 라켓을 움직이기 시작해야 하는지를 반환합니다.
+    """
+    dz = ball_z_max_pos - impact_z
+    if dz < 0:
+        print("impact_z는 ball_z_max_pos보다 낮아야 합니다.")
+        return 0
+
+    t_to_impact = sqrt(2 * dz / g)
+    return t_to_impact - racket_up_time
+
+
 def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # g in mm/s²
     global ball_pos, ball_vel, racket_vel
 
@@ -463,7 +437,7 @@ def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # g in mm/s�
     v_racket_z = racket_vel[2]      # mm/s
 
     # 목표 위치 변경: (0, 10, target_z)
-    target = np.array([10.0, 20.0, target_z])
+    target = np.array([-5.0, 15.0, target_z])
     dx, dy = target[0] - pos[0], target[1] - pos[1]
     delta_z = target_z - pos[2]
 
@@ -499,6 +473,52 @@ def compute_racket_orientation(target_z, restitution=0.8, g=9810):  # g in mm/s�
     pitch = np.arcsin(n[1])   # y축 회전
 
     return roll, pitch
+
+
+
+def compute_parabolic_roll_pitch(x, y, width, max_degree, para_z, base_z):
+    half = width / 2
+    x_norm = np.clip(x / half, -1.0, 1.0)
+    y_norm = np.clip(y / half, -1.0, 1.0)
+
+    delta_z = para_z - base_z
+    if delta_z <= 0:
+        raise ValueError("para_z must be greater than base_z.")
+    a = - 1 / (4 * delta_z)
+
+    x_real = x_norm * half
+    y_real = y_norm * half
+
+    dzdx = 2 * a * x_real
+    dzdy = 2 * a * y_real
+
+    n = np.array([-dzdx, -dzdy, 1.0])
+    n /= np.linalg.norm(n)
+
+    roll_rad = np.arcsin(n[1])
+    pitch_rad = np.arcsin(-n[0])
+
+    max_rad = radians(max_degree)
+    roll_rad = np.clip(roll_rad, -max_rad, max_rad)
+    pitch_rad = np.clip(pitch_rad, -max_rad, max_rad)
+
+    return roll_rad, pitch_rad
+
+
+
+
+def compute_gaussian_roll_pitch(x, y, amplitude=100, sigma=800):
+    A = amplitude
+    r2 = x**2 + y**2
+    exp_part = np.exp(-r2 / (2 * sigma**2))
+
+    dz_dx = (A * x / sigma**2) * exp_part
+    dz_dy = (A * y / sigma**2) * exp_part
+
+    roll_rad = np.arctan(dz_dy)
+    pitch_rad = -np.arctan(dz_dx)
+
+    return roll_rad, pitch_rad
 
 
 
@@ -582,7 +602,7 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
 indy.stop_teleop()
 
-home_pos = np.array([595, 25, 420, -93.59, 76.57, -98.37]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([595, 25, 420, -87.049, 76.203, -92.013]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -611,17 +631,16 @@ time.sleep(5)
 try:
     workspace_width = 350
     workspace_height = 300
-    workspace_tolerance = 5
+    workspace_tolerance = 10
     robot_calibration(home_pos, workspace_width, workspace_height)
     time.sleep(2)
-    indy.movetelel_abs(home_pos, 0.5, 1.0)
+    indy.movetelel_abs(home_pos, 0.4, 1.0)
     time.sleep(2)
 
-    vel_threshold = 80 # in mm/s
-    height_threshold = 200
+    vel_threshold = 100 # in mm/s
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 160
+    bounce_height = 70
     test_roll_rad = 0
     test_pitch_rad = 0
 
@@ -630,9 +649,14 @@ try:
     time_data = open("file_time_data.txt", 'w')
     robot_pos_data = open("file_robot_pos_data.txt", 'w')
     robot_vel_data = open("file_robot_vel_data.txt", 'w')
+    roll_pitch_data = open("file_roll_pitch_data.txt", 'w')
 
     start_time = time.time()
     count = 0
+
+    max_ball_z_pos = 0
+    max_ball_z_time = time.time()
+    is_ball_falling = False
 
     print("#### detach the ball and press s ####")
     while (True):
@@ -664,6 +688,7 @@ try:
 
         if ((np.abs(ball_pos[0]) > (workspace_width/2 + workspace_tolerance))
             or (np.abs(ball_pos[1]) > (workspace_width/2 + workspace_tolerance))):
+            roll_pitch_data.write("0.0,0.0\n")
             print("#### ball is out of workspace. esc to stop, s to start again ####")
             selection = 'esc'
             while (True):
@@ -680,34 +705,55 @@ try:
                 break
         
         
-        if (ball_vel[2] > vel_threshold) or (ball_pos[2] > workspace_height/2):
-            target_z = -workspace_height/2
+        if (is_ball_falling):
             orientation_lock = False
-        elif (ball_pos[2] < -workspace_height/2 + bounce_height + height_threshold): #ball_vel[2] < -vel_threshold
-            target_z = -workspace_height/2 + bounce_height
-            orientation_lock = True
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.35)
+            if (now_time >= when_to_up):
+                orientation_lock = False
+                target_z = -workspace_height/2 + bounce_height + 10
+            if (ball_vel[2] > vel_threshold):
+                target_z = -workspace_height/2
+                is_ball_falling = False
+        else :
+            orientation_lock = False
+            test_roll_rad = 0
+            test_pitch_rad = 0
+            if (ball_vel[2] >= 0):
+                if (ball_pos[2] > max_ball_z_pos):
+                    max_ball_z_pos = ball_pos[2]
+                    max_ball_z_time = now_time
+            elif (ball_pos[2] > max_ball_z_pos):
+                max_ball_z_pos = ball_pos[2]
+                max_ball_z_time = now_time
+            elif (ball_vel[2] < -vel_threshold):
+                is_ball_falling = True
+        
 
 
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-        if (orientation_lock):
-            pass
-        elif (ball_vel[2] < -vel_threshold): # if the ball is dropping
+        if (not orientation_lock):
+            #test_roll_rad, test_pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
+            test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 1000, -workspace_height/2 + bounce_height)
+            #test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
+            '''
             test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
-            if (np.abs(test_roll_rad) > 0.5): # ~= +-30 deg
-                test_roll_rad = 0
-            if (np.abs(test_pitch_rad) > 0.5): # ~= +-30 deg
-                test_pitch_rad = 0
-            #print("racket orientation : " + str(np.degrees(test_roll_rad)) + ", " + str(np.degrees(test_pitch_rad)))
-        else:
-            test_roll_rad = 0
-            test_pitch_rad = 0
+            if (test_roll_rad > 0.5): # ~= +-30 deg
+                test_roll_rad = 0.5
+            elif (test_roll_rad < -0.5):
+                test_roll_rad = -0.5
+            if (test_pitch_rad > 0.5): # ~= +-30 deg
+                test_pitch_rad = 0.5
+            elif (test_pitch_rad < -0.5):
+                test_pitch_rad = -0.5
+            '''
 
+        roll_pitch_data.write(str(np.degrees(test_roll_rad)) + "," + str(np.degrees(test_pitch_rad)) + "\n")
 
         #print("Ref. value : " + str(np.degrees(roll_rad)) + "," + str(np.degrees(pitch_rad)) + " Test value : " + str(test_roll_deg) + "," + str(test_pitch_deg))
         lacket_angles = apply_roll_pitch(home_pos[3:6], test_roll_rad, test_pitch_rad)
 
         indy.movetelel_abs(np.array([home_pos[0] + ball_pos[0], home_pos[1] + ball_pos[1], home_pos[2] + target_z,
-                                    lacket_angles[0], lacket_angles[1], lacket_angles[2]]))
+                                    lacket_angles[0], lacket_angles[1], lacket_angles[2]]), vel_ratio=1.0, acc_ratio=1.0)
         
     
 except Exception as e:
@@ -721,6 +767,7 @@ finally:
     time_data.close()
     robot_pos_data.close()
     robot_vel_data.close()
+    roll_pitch_data.close()
 
     time.sleep(2)
     indy.get_violation_data()
