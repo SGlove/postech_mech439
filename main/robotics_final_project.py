@@ -100,7 +100,7 @@ def runCamera():
     cam2 = RealSense(serial=SERIAL2)
     cam2.initialize(resolution_color=D455_DEFAULT_COLOR, resolution_depth=D455_DEFAULT_DEPTH)
 
-    ballLower = (5, 100, 200)
+    ballLower = (5, 94, 190)
     ballUpper = (78, 255, 255)
 
     cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE) #UI
@@ -602,7 +602,7 @@ def apply_roll_pitch(original_angles_deg, roll_rad, pitch_rad):
 
 indy.stop_teleop()
 
-home_pos = np.array([595, 25, 420, -89.231, 76.476, -94.132]) # x, y, z (mm), x, y, z (deg)
+home_pos = np.array([595, 25, 420, -87.049, 76.203, -92.013]) # x, y, z (mm), x, y, z (deg)
 indy.movel(ttarget = home_pos)
 
 #init_jpos = indy.get_control_data()['q']
@@ -640,7 +640,7 @@ try:
     vel_threshold = 100 # in mm/s
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 80
+    bounce_height = 70
     test_roll_rad = 0
     test_pitch_rad = 0
 
@@ -707,7 +707,7 @@ try:
         
         if (is_ball_falling):
             orientation_lock = False
-            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.45)
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.35)
             if (now_time >= when_to_up):
                 orientation_lock = False
                 target_z = -workspace_height/2 + bounce_height + 10
@@ -733,8 +733,8 @@ try:
         #roll_rad, pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
         if (not orientation_lock):
             #test_roll_rad, test_pitch_rad = compute_linear_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 10)
-            #test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 1500, -workspace_height/2 + bounce_height)
-            test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
+            test_roll_rad, test_pitch_rad = compute_parabolic_roll_pitch(ball_pos[0], ball_pos[1], workspace_width, 20, 1000, -workspace_height/2 + bounce_height)
+            #test_roll_rad, test_pitch_rad = compute_gaussian_roll_pitch(ball_pos[0], ball_pos[1])
             '''
             test_roll_rad, test_pitch_rad = compute_racket_orientation(-workspace_height/2 + bounce_height) #racket_pos[2] ? -workspace_height/2 + bounce_height ? redundant???
             if (test_roll_rad > 0.5): # ~= +-30 deg
@@ -753,7 +753,7 @@ try:
         lacket_angles = apply_roll_pitch(home_pos[3:6], test_roll_rad, test_pitch_rad)
 
         indy.movetelel_abs(np.array([home_pos[0] + ball_pos[0], home_pos[1] + ball_pos[1], home_pos[2] + target_z,
-                                    lacket_angles[0], lacket_angles[1], lacket_angles[2]]), vel_ratio=1.0, acc_ratio=2.0)
+                                    lacket_angles[0], lacket_angles[1], lacket_angles[2]]), vel_ratio=1.0, acc_ratio=1.0)
         
     
 except Exception as e:
