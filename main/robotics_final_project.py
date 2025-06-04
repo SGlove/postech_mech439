@@ -640,7 +640,7 @@ try:
     vel_threshold = 100 # in mm/s
     target_z = -workspace_height/2
     orientation_lock = False
-    bounce_height = 70
+    bounce_height = 85
     test_roll_rad = 0
     test_pitch_rad = 0
 
@@ -707,7 +707,7 @@ try:
         
         if (is_ball_falling):
             orientation_lock = False
-            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.35)
+            when_to_up = max_ball_z_time + get_racket_launch_delay_after_peak(max_ball_z_pos, -workspace_height/2 + bounce_height, 0.32)
             if (now_time >= when_to_up):
                 orientation_lock = False
                 target_z = -workspace_height/2 + bounce_height + 10
